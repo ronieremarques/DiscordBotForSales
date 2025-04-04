@@ -1,0 +1,17 @@
+{
+  "name": "vendas-automaticas",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon index.js"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.18.0",
+    "discord-rpc": "^4.0.1",
+    "discord.js": "^14.13.0",
+    "dotenv": "^16.3.1",
+    "mongoose": "^8.0.3",
+    "nodemon": "^3.1.9",
+    "qrcode": "^1.5.4"
+  }
+}
