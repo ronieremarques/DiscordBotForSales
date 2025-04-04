@@ -38,12 +38,12 @@ A powerful Discord bot designed to automate and manage sales through Discord ser
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/vendas-automaticas.git
+git clone https://github.com/ronieremarques/DiscordBotForSales.git
 ```
 
 2. Install dependencies:
 ```bash
-cd vendas-automaticas
+cd DiscordBotForSales
 npm install
 ```
 
