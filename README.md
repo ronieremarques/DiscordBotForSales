@@ -1,5 +1,5 @@
 # Discord Bot For Sales
-
+![ef0716d3-ac42-466d-af41-631e9f796b93](https://github.com/user-attachments/assets/ae303f02-97bd-4d98-851c-36d2dd423022)
 A powerful Discord bot designed to automate and manage sales through Discord servers. Perfect for digital product sellers, service providers, and community managers.
 
 ![Bot Status](https://img.shields.io/badge/status-active-success)
