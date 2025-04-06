@@ -4,7 +4,8 @@ const Ticket = require('../models/Ticket');
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
-    if (!interaction.isButton() || interaction.customId !== 'create_ticket') return;
+    if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
+    if (interaction.customId !== 'create_ticket') return;
 
     try {
       const ticket = await Ticket.findOne({ messageId: interaction.message.id });
@@ -16,20 +17,25 @@ module.exports = {
         });
       }
 
-      if (!interaction.member.permissions.has('Administrator')) {
-        return interaction.reply({
-          content: '❌ Apenas administradores podem configurar.',
-          ephemeral: true
-        });
-      }
-
       const existingThread = interaction.channel.threads.cache.find(
         thread => thread.name === `ticket-${interaction.user.username}`
       );
 
       if (existingThread) {
+        const isVendas = ticket.ticketType === 'vendas';
         return interaction.reply({
-          content: '❌ Você já possui um ticket aberto!',
+          content: isVendas ? 
+            '❌ Você já possui um carrinho aberto!' : 
+            '❌ Você já possui um ticket aberto!',
+          components: isVendas ? [
+            new ActionRowBuilder()
+              .addComponents(
+                new ButtonBuilder()
+                  .setLabel('Ir para o carrinho')
+                  .setStyle(ButtonStyle.Link)
+                  .setURL(`https://discord.com/channels/${interaction.guild.id}/${existingThread.id}`)
+              )
+          ] : [],
           ephemeral: true
         });
       }
@@ -45,20 +51,37 @@ module.exports = {
 
       await thread.members.add(interaction.user.id);
 
+      // Get selected option if it's a menu interaction
+      let selectedOption = null;
+      if (interaction.isStringSelectMenu()) {
+        selectedOption = ticket.embedSettings.menuOptions.find(
+          opt => opt.value === interaction.values[0]
+        );
+      }
+
       const threadEmbed = new EmbedBuilder();
 
       if (ticket.ticketType === 'vendas') {
         threadEmbed
-          .setTitle('Venda Manual - ' + ticket.embedSettings.title)
-          .setDescription(`Olá ${interaction.user}, para finalizar sua compra:\n\n` +
+          .setTitle(selectedOption ? `Compra: ${selectedOption.label}` : ticket.embedSettings.title)
+          .setColor("#242429")
+          .setDescription(`Olá ${interaction.user}, para finalizar sua compra${selectedOption ? ` do produto **${selectedOption.label}**` : ''}:\n\n` +
             '1. Clique no botão PIX para copiar a chave\n' +
             '2. Realize o pagamento\n' +
             '3. Envie o comprovante neste canal\n' +
             '4. Aguarde a validação do pagamento');
+
+        if (selectedOption?.description) {
+          threadEmbed.addFields({ 
+            name: 'Detalhes do Produto', 
+            value: selectedOption.description 
+          });
+        }
       } else {
         threadEmbed
-          .setTitle('Ticket Aberto')
-          .setDescription(`Olá ${interaction.user}, obrigado por abrir um ticket!`);
+          .setTitle(selectedOption ? `Ticket: ${selectedOption.label}` : 'Ticket Aberto')
+          .setColor("#242429")
+          .setDescription(`Olá ${interaction.user}, obrigado por abrir um ticket${selectedOption ? ` sobre **${selectedOption.label}**` : ''}!\nComo podemos ajudar?`);
       }
 
       const buttons = [
@@ -68,7 +91,8 @@ module.exports = {
           .setStyle(ButtonStyle.Danger)
       ];
 
-      if (ticket.embedSettings.pixKey) {
+      // Only add PIX button if it's a sales ticket and has PIX key configured
+      if (ticket.ticketType === 'vendas' && ticket.embedSettings.pixKey) {
         buttons.push(
           new ButtonBuilder()
             .setCustomId('pix_button')
@@ -121,14 +145,20 @@ module.exports = {
             // Criar botão de validação apenas para administradores
             const validationButton = new ButtonBuilder()
               .setCustomId('validate_payment')
-              .setLabel('Validar Pagamento')
+              .setLabel('CONFIRMAR PAGAMENTO')
               .setStyle(ButtonStyle.Success);
 
             const row = new ActionRowBuilder().addComponents(validationButton);
 
             // Enviar mensagem com botão de validação
             await thread.send({
-              content: '✅ Comprovante recebido! Aguardando validação do administrador.',
+              embeds: [
+                new EmbedBuilder()
+                  .setTitle('Possivel Comprovante de Pagamento')
+                  .setColor('Green')
+                  .setDescription(`Comprovante enviado por ${message.author}!\n-# Agurarde a validação do pagamento.`)
+                  .setImage(attachment.url)
+              ],
               components: [row]
             });
 
@@ -148,14 +178,34 @@ module.exports = {
       });
 
       // Adicionar tratamento de erro para o collector
-      proofCollector.on('end', collected => {
-        if (collected.size === 0) {
-          thread.send('⚠️ Nenhum comprovante detectado ainda. Por favor, envie o comprovante de pagamento.');
+      proofCollector.on('end', async collected => {
+        try {
+          // Check if thread still exists before sending message
+          const threadExists = await interaction.client.channels.fetch(thread.id)
+            .catch(() => null);
+            
+          if (threadExists && collected.size === 0) {
+            await thread.send('⚠️ Nenhum comprovante detectado ainda. Por favor, envie o comprovante de pagamento.')
+              .catch(console.error);
+          }
+        } catch (error) {
+          console.error('Erro ao verificar thread:', error);
         }
       });
 
       await interaction.reply({
-        content: '✅ Ticket criado com sucesso!',
+        content: ticket.ticketType === 'vendas' ? 
+          '🛒 Carrinho criado com sucesso!' : 
+          '✅ Ticket criado com sucesso!',
+        components: ticket.ticketType === 'vendas' ? [
+          new ActionRowBuilder()
+            .addComponents(
+              new ButtonBuilder()
+                .setLabel('Ir para o carrinho')
+                .setStyle(ButtonStyle.Link)
+                .setURL(`https://discord.com/channels/${interaction.guild.id}/${thread.id}`)
+            )
+        ] : [],
         ephemeral: true
       });
 

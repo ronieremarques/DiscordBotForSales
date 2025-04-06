@@ -124,4 +124,8 @@ async function startBot() {
   }
 }
 
+process.on('uncaughtException', (error) => {
+  console.error('❌ Exceção não capturada:', error);
+});
+
 startBot();

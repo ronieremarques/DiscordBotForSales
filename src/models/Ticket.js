@@ -11,7 +11,16 @@ const ticketSchema = new mongoose.Schema({
     description: { type: String, default: 'Clique no botão abaixo para abrir um ticket.' },
     color: { type: String, default: '#5865F2' },
     pixKey: { type: String },
-    image: { type: String } // Adicionado campo para imagem
+    image: { type: String }, // Adicionado campo para imagem
+    stock: { type: String }, // Add this for storing JSON stock data
+    useMenu: { type: Boolean, default: false },
+    menuPlaceholder: { type: String },
+    menuOptions: [{
+      label: String,
+      emoji: String, 
+      description: String,
+      value: String
+    }]
   },
   buttonSettings: {
     style: { type: String, default: 'Primary' }, // Primary, Success, Secondary, Danger

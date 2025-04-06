@@ -1,23 +1,33 @@
 const { Events } = require('discord.js');
+const Ticket = require('../models/Ticket');
 
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
     if (!interaction.isButton() || interaction.customId !== 'pix_button') return;
 
-    const embed = interaction.message.embeds[0];
-    const pixField = embed.fields?.find(field => field.name === 'Chave PIX');
+    try {
+      // Buscar o ticket relacionado à thread atual
+      const ticket = await Ticket.findOne({ threadId: interaction.channel.id });
 
-    if (!pixField) {
-      return interaction.reply({
-        content: '❌ Nenhuma chave PIX configurada para este ticket.',
+      if (!ticket || !ticket.embedSettings.pixKey) {
+        return interaction.reply({
+          content: '❌ Nenhuma chave PIX configurada para este ticket.',
+          ephemeral: true
+        });
+      }
+
+      await interaction.reply({
+        content: `${ticket.embedSettings.pixKey}`,
+        ephemeral: true
+      });
+      
+    } catch (error) {
+      console.error('Erro ao buscar chave PIX:', error);
+      await interaction.reply({
+        content: '❌ Erro ao buscar a chave PIX.',
         ephemeral: true
       });
     }
-
-    await interaction.reply({
-      content: `💳 **Chave PIX:** \`${pixField.value}\``,
-      ephemeral: true
-    });
   }
 };

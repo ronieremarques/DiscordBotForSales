@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ChannelType } = require('discord.js');
+const { SlashCommandBuilder, ChannelType, PermissionsBitField } = require('discord.js');
 const { joinVoiceChannel, getVoiceConnection } = require('@discordjs/voice');
 const Config = require('../../models/Config');
 
@@ -15,6 +15,14 @@ module.exports = {
 
   async execute(interaction) {
     try {
+
+      if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+        return interaction.reply({
+          content: '❌ Você não tem permissão para usar este comando.',
+          ephemeral: true
+        });
+      }
+
       const channel = interaction.options.getChannel('channel');
 
       // Verifica se o bot já está conectado em algum canal

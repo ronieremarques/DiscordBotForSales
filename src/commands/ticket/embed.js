@@ -3,8 +3,8 @@ const Ticket = require('../../models/Ticket');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('ticket')
-    .setDescription('Cria uma embed de ticket com interações para configuração'),
+    .setName('painel')
+    .setDescription('Crie uma embed de ticket/venda para vender seus produtos.'),
 
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -25,14 +25,13 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor(0x5865F2) // Cor em formato hexadecimal
-        .setTitle('Sistema de Tickets')
-        .setDescription('Clique no botão abaixo para abrir um ticket.')
-        .setFooter({ text: 'Configuração disponível apenas para administradores.' });
+        .setTitle('Painel de configuração embed')
+        .setDescription('Clique no botão com emoji "⚙️" para começar a configurar essa embed.\n-# Pode configurar ela tanto para embed de vendas quanto para embed de tickets de suporte.')
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('create_ticket')
-          .setLabel('Abrir Ticket')
+          .setLabel('Button Name')
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
           .setCustomId('config_ticket')
@@ -50,7 +49,7 @@ module.exports = {
       await ticket.save();
 
       await interaction.reply({
-        content: '✅ Embed de ticket criada com sucesso!',
+        content: 'Configure seu painel!',
         ephemeral: true
       });
 

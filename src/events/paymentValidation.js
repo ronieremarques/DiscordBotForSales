@@ -1,5 +1,6 @@
 const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const Ticket = require('../models/Ticket'); // Adicionando importação do modelo
+const Config = require('../models/Config'); // Adicionando importação do modelo de configuração
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -70,6 +71,58 @@ module.exports = {
         sellerId: interaction.user.id
       };
       await ticket.save();
+
+      // In the validate_payment handler
+      if (ticket?.embedSettings?.stock) {
+        try {
+          const stock = JSON.parse(ticket.embedSettings.stock);
+          if (stock.length > 0) {
+            const product = stock.shift(); // Remove first product from stock
+            
+            try {
+              // Try to send to user's DM
+              const user = await interaction.client.users.fetch(ticket.deliveryStatus.buyerId);
+              await user.send({
+                content: `🎉 Seu produto foi entregue!\n\n${product.content}`
+              });
+
+              // Update stock
+              ticket.embedSettings.stock = JSON.stringify(stock);
+              await ticket.save();
+
+              // Send message in thread
+              await interaction.channel.send({
+                content: `✅ Produto enviado no privado de <@${ticket.deliveryStatus.buyerId}>!\n⚠️ Este canal será deletado em 1 minuto.`
+              });
+
+              // Delete thread after 1 minute
+              setTimeout(async () => {
+                try {
+                  await interaction.channel.delete('Venda concluída');
+                } catch (err) {
+                  console.error('Erro ao deletar canal:', err);
+                }
+              }, 60000);
+
+            } catch (dmError) {
+              // If DM fails, send in thread
+              await interaction.channel.send({
+                content: `❌ Não foi possível enviar no privado. **PRODUTO:**\n\n${product.content}\n\n⚠️ Este canal será deletado em 1 minuto, salve seu produto!`
+              });
+
+              setTimeout(async () => {
+                try {
+                  await interaction.channel.delete('Venda concluída');
+                } catch (err) {
+                  console.error('Erro ao deletar canal:', err);
+                }
+              }, 60000);
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao processar estoque:', error);
+        }
+      }
     }
 
     if (interaction.customId === 'delivery_channel') {
@@ -78,6 +131,16 @@ module.exports = {
         const channel = interaction.guild.channels.cache.get(channelId);
         const ticket = await Ticket.findOne({ threadId: interaction.channel.id });
 
+        // Get or create guild config to track sales
+        let guildConfig = await Config.findOne({ guildId: interaction.guild.id });
+        if (!guildConfig) {
+          guildConfig = new Config({ guildId: interaction.guild.id });
+        }
+        
+        // Increment sales counter
+        guildConfig.salesCount = (guildConfig.salesCount || 0) + 1;
+        await guildConfig.save();
+
         if (!ticket) {
           return interaction.reply({
             content: '❌ Ticket não encontrado.',
@@ -85,7 +148,6 @@ module.exports = {
           });
         }
 
-        // Criar o botão que leva à mensagem
         const row = new ActionRowBuilder()
           .addComponents(
             new ButtonBuilder()
@@ -94,33 +156,34 @@ module.exports = {
               .setURL(`https://discord.com/channels/${interaction.guild.id}/${ticket.channelId}/${ticket.messageId}`)
           );
 
-        // Preparar a mensagem de texto
-        const content = `Entrega realizada com sucesso <@${ticket.deliveryStatus.buyerId}>!\n-# Vendido por <@${ticket.deliveryStatus.sellerId}>`;
-
         if (ticket.deliveryStatus.deliveryImage) {
-          // Se tiver imagem, enviar como anexo
-          const response = await fetch(ticket.deliveryStatus.deliveryImage);
-          const buffer = await response.arrayBuffer();
-          
           await channel.send({
-            content: content,
-            files: [{ attachment: Buffer.from(buffer), name: 'entrega.png' }],
+            embeds: [
+              new EmbedBuilder()
+                .setTitle(`${interaction.guild.name} | Nova Venda #${guildConfig.salesCount}`)
+                .setDescription(`- **Comprador:** <@${ticket.deliveryStatus.buyerId}>\n- **Vendedor:** <@${ticket.deliveryStatus.sellerId}>\n- **Produto:** ${ticket.embedSettings.title}\n- **Data:** ${new Date().toLocaleDateString('pt-BR')}\n- **Hora:** ${new Date().toLocaleTimeString('pt-BR')}`)
+                .setColor('#242429')
+                .setImage(ticket.deliveryStatus.deliveryImage)
+            ],
             components: [row]
           });
         } else {
-          // Se não tiver imagem, enviar só o texto
           await channel.send({
-            content: content,
+            embeds: [
+              new EmbedBuilder()
+                .setTitle(`${interaction.guild.name} | Nova Venda #${guildConfig.salesCount}`)
+                .setDescription(`- **Comprador:** <@${ticket.deliveryStatus.buyerId}>\n- **Vendedor:** <@${ticket.deliveryStatus.sellerId}>\n- **Produto:** ${ticket.embedSettings.title}\n- **Data:** ${new Date().toLocaleDateString('pt-BR')}\n- **Hora:** ${new Date().toLocaleTimeString('pt-BR')}`)
+                .setColor('#242429')
+            ],
             components: [row]
           });
         }
 
         await interaction.reply({
-          content: '✅ Confirmação de entrega enviada!',
+          content: `✅ Confirmação de entrega enviada! (Venda #${guildConfig.salesCount})`,
           ephemeral: true
         });
 
-        // Fechar o ticket
         await interaction.channel.delete('Venda concluída');
 
       } catch (error) {
