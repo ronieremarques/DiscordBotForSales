@@ -37,7 +37,8 @@ const ticketSchema = new mongoose.Schema({
     deliveryImage: { type: String },
     buyerId: { type: String },
     sellerId: { type: String }
-  }
+  },
+  selectedOption: { type: String } // Add this field
 });
 
 module.exports = mongoose.model('Ticket', ticketSchema);

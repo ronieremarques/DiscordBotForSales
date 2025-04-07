@@ -1,5 +1,6 @@
 const { Events, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const Ticket = require('../models/Ticket');
+const Product = require('../models/Product');
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -103,13 +104,7 @@ module.exports = {
             emoji: "➕",
             description: 'Adicionar opção ao menu dropdown',
             value: 'add_menu_option'
-          },/* 
-          {
-            label: 'Gerenciar Produtos',
-            emoji: "🛍️",
-            description: 'Gerenciar produtos do menu',
-            value: 'manage_products'
-          }, */
+          }
         ]);
 
       await interaction.reply({
@@ -403,81 +398,34 @@ module.exports = {
 
         const descriptionInput = new TextInputBuilder()
           .setCustomId('option_description')
-          .setLabel('Descrição (opcional)')
-          .setPlaceholder('Digite uma descrição para a opção')
+          .setLabel('Descrição (use [preco] e [estoque])')
+          .setPlaceholder('Ex: Preço: [preco] | Estoque: [estoque]')
           .setStyle(TextInputStyle.Paragraph)
-          .setRequired(false);
+          .setRequired(true);
 
-        const firstRow = new ActionRowBuilder().addComponents(nameInput);
-        const secondRow = new ActionRowBuilder().addComponents(emojiInput);
-        const thirdRow = new ActionRowBuilder().addComponents(descriptionInput);
+        const priceInput = new TextInputBuilder()
+          .setCustomId('option_price')
+          .setLabel('Preço')
+          .setPlaceholder('Digite o preço (ex: 10.00)')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true);
 
-        modal.addComponents(firstRow, secondRow, thirdRow);
+        const stockInput = new TextInputBuilder()
+          .setCustomId('option_stock')
+          .setLabel('Quantidade em estoque')
+          .setPlaceholder('Digite a quantidade disponível')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true);
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(nameInput),
+          new ActionRowBuilder().addComponents(emojiInput),
+          new ActionRowBuilder().addComponents(descriptionInput),
+          new ActionRowBuilder().addComponents(priceInput),
+          new ActionRowBuilder().addComponents(stockInput)
+        );
+
         await interaction.showModal(modal);
-        return;
-      }
-
-      if (selectedOption === 'manage_products') {
-        // Get existing products
-        const products = ticket.embedSettings?.menuOptions || [];
-        
-        if (products.length === 0) {
-          // No products - show only add button
-          const row = new ActionRowBuilder()
-            .addComponents(
-              new ButtonBuilder()
-                .setCustomId('add_product')
-                .setLabel('Cadastrar Produto')
-                .setStyle(ButtonStyle.Success)
-                .setEmoji('➕')
-            );
-      
-          await interaction.reply({
-            content: '📦 Nenhum produto cadastrado.',
-            components: [row],
-            ephemeral: true
-          });
-          return;
-        }
-      
-        // Show product list with management options
-        const productMenu = new StringSelectMenuBuilder()
-          .setCustomId('select_product_manage')
-          .setPlaceholder('Selecione um produto para gerenciar')
-          .addOptions(
-            products.map((product, index) => {
-              let valueText = 'Não definido';
-              if (product.description) {
-                const match = product.description.match(/Valor: R\$(\d+)/);
-                if (match) {
-                  valueText = `R$${match[1]}`;
-                }
-              }
-      
-              return {
-                label: product.label || `Produto ${index + 1}`,
-                description: `Valor: ${valueText}`,
-                value: `product_${index}`,
-                emoji: product.emoji || '📦'
-              };
-            })
-          );
-      
-        const row = new ActionRowBuilder().addComponents(productMenu);
-        const buttonRow = new ActionRowBuilder()
-          .addComponents(
-            new ButtonBuilder()
-              .setCustomId('add_product')
-              .setLabel('Cadastrar Novo')
-              .setStyle(ButtonStyle.Success)
-              .setEmoji('➕')
-          );
-      
-        await interaction.reply({
-          content: '🛍️ Gerenciamento de Produtos',
-          components: [row, buttonRow],
-          ephemeral: true
-        });
         return;
       }
 
@@ -746,29 +694,37 @@ module.exports = {
       }
     }
 
+    // No trecho onde adiciona uma nova opção ao menu
     if (interaction.isModalSubmit() && interaction.customId === 'add_menu_option_modal') {
       try {
         const label = interaction.fields.getTextInputValue('option_name');
         const emoji = interaction.fields.getTextInputValue('option_emoji');
         const description = interaction.fields.getTextInputValue('option_description');
+        const price = parseFloat(interaction.fields.getTextInputValue('option_price'));
+        const stock = parseInt(interaction.fields.getTextInputValue('option_stock'));
 
-        // Validate emoji if provided
-        if (emoji && !isValidEmoji(emoji)) {
-          return interaction.reply({
-            content: '❌ Emoji inválido. Use um emoji Unicode ou um emoji personalizado do Discord.',
-            ephemeral: true
-          });
-        }
+        // Validações...
 
         const ticket = await Ticket.findOne({ messageId: interaction.message?.reference?.messageId });
         
-        if (!ticket) {
-          return interaction.reply({
-            content: '❌ Configuração não encontrada.',
-            ephemeral: true
-          });
-        }
+        if (!ticket) return;
 
+        // Criar ID único para a opção
+        const optionId = `option_${Date.now()}`;
+
+        // Criar produto no banco de dados
+        const product = await Product.create({
+          ticketId: ticket.messageId,
+          optionId: optionId,
+          label,
+          price,
+          stock,
+          description: description.replace('[preco]', `R$ ${price.toFixed(2)}`).replace('[estoque]', stock.toString()),
+          emoji: emoji || undefined,
+          originalDescription: description
+        });
+
+        // Adicionar opção ao menu do ticket
         if (!ticket.embedSettings.menuOptions) {
           ticket.embedSettings.menuOptions = [];
         }
@@ -776,15 +732,15 @@ module.exports = {
         ticket.embedSettings.menuOptions.push({
           label,
           emoji: emoji || undefined,
-          description: description || undefined,
-          value: `option_${ticket.embedSettings.menuOptions.length}`
+          description: product.description,
+          value: optionId
         });
 
         await ticket.save();
         await updateEmbed(interaction.channel, ticket);
 
         await interaction.reply({
-          content: '✅ Opção adicionada ao menu com sucesso!',
+          content: `✅ Produto adicionado ao menu com sucesso!\nNome: ${label}\nPreço: R$ ${price.toFixed(2)}\nEstoque: ${stock}`,
           ephemeral: true
         });
 
@@ -795,411 +751,6 @@ module.exports = {
           ephemeral: true
         });
       }
-    }
-
-    if (interaction.customId === 'add_product') {
-      try {
-        const modal = new ModalBuilder()
-          .setCustomId('add_product_modal')
-          .setTitle('Cadastrar Produto');
-      
-        const nameInput = new TextInputBuilder()
-          .setCustomId('product_name')
-          .setLabel('Nome do produto')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true);
-      
-        const valueInput = new TextInputBuilder()
-          .setCustomId('product_value')
-          .setLabel('Valor (apenas números)')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true);
-      
-        const stockInput = new TextInputBuilder()
-          .setCustomId('product_stock')
-          .setLabel('Quantidade em estoque')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true);
-      
-        const emojiInput = new TextInputBuilder()
-          .setCustomId('product_emoji')
-          .setLabel('Emoji (opcional)')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(false);
-      
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(nameInput),
-          new ActionRowBuilder().addComponents(valueInput),
-          new ActionRowBuilder().addComponents(stockInput),
-          new ActionRowBuilder().addComponents(emojiInput)
-        );
-      
-        await interaction.showModal(modal);
-        
-      } catch (error) {
-        console.error('Erro ao abrir modal:', error);
-        await interaction.reply({
-          content: '❌ Erro ao abrir formulário de produto.',
-          ephemeral: true
-        });
-      }
-      return;
-    }
-    
-    // Na função que lida com o 'select_product_manage'
-    if (interaction.customId === 'select_product_manage') {
-      try {
-        // Buscar o ticket usando o messageId armazenado nos dados do menu
-        const originalMessageId = interaction.message?.reference?.messageId;
-        const configMessage = await interaction.channel.messages.fetch(originalMessageId);
-        const mainMessageId = configMessage?.reference?.messageId;
-    
-        const ticket = await Ticket.findOne({
-          $or: [
-            { messageId: mainMessageId },
-            { messageId: originalMessageId },
-            { messageId: interaction.message.reference?.messageId }
-          ]
-        });
-    
-        if (!ticket) {
-          return interaction.reply({
-            content: '❌ Configuração não encontrada. ID: ' + mainMessageId,
-            ephemeral: true
-          });
-        }
-    
-        const selectedIndex = parseInt(interaction.values[0].split('_')[1]);
-        const product = ticket.embedSettings.menuOptions[selectedIndex];
-    
-        if (!product) {
-          return interaction.reply({
-            content: '❌ Produto não encontrado.',
-            ephemeral: true
-          });
-        }
-    
-        const row = new ActionRowBuilder()
-          .addComponents(
-            new ButtonBuilder()
-              .setCustomId(`edit_product_${selectedIndex}_${ticket.messageId}`) // Adicionado ID do ticket
-              .setLabel('Editar')
-              .setStyle(ButtonStyle.Primary)
-              .setEmoji('✏️'),
-            new ButtonBuilder()
-              .setCustomId(`delete_product_${selectedIndex}_${ticket.messageId}`) // Adicionado ID do ticket
-              .setLabel('Excluir')
-              .setStyle(ButtonStyle.Danger)
-              .setEmoji('🗑️'),
-            new ButtonBuilder()
-              .setCustomId(`add_stock_${selectedIndex}_${ticket.messageId}`) // Adicionado ID do ticket
-              .setLabel('Adicionar Estoque')
-              .setStyle(ButtonStyle.Success)
-              .setEmoji('📦'),
-            new ButtonBuilder()
-              .setCustomId(`remove_stock_${selectedIndex}_${ticket.messageId}`) // Adicionado ID do ticket
-              .setLabel('Remover Estoque')
-              .setStyle(ButtonStyle.Secondary)
-              .setEmoji('📉')
-          );
-    
-        await interaction.reply({
-          content: `**Gerenciando:** ${product.label}\n${product.description}`,
-          components: [row],
-          ephemeral: true
-        });
-    
-      } catch (error) {
-        console.error('Erro ao gerenciar produto:', error);
-        await interaction.reply({
-          content: '❌ Erro ao gerenciar produto.',
-          ephemeral: true
-        });
-      }
-      return;
-    }
-    
-    // Atualizar o handler dos botões para usar o novo ID
-    if (interaction.customId.startsWith('edit_product_') ||
-        interaction.customId.startsWith('delete_product_') ||
-        interaction.customId.startsWith('add_stock_') ||
-        interaction.customId.startsWith('remove_stock_')) {
-      
-      const [action, _, index, ticketId] = interaction.customId.split('_');
-      
-      const ticket = await Ticket.findOne({ messageId: ticketId });
-      if (!ticket) {
-        return interaction.reply({
-          content: '❌ Configuração não encontrada.',
-          ephemeral: true
-        });
-      }
-    
-      const product = ticket.embedSettings.menuOptions[parseInt(index)];
-      // ... resto do código ...
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId === 'add_product_modal') {
-      try {
-        const name = interaction.fields.getTextInputValue('product_name');
-        const value = interaction.fields.getTextInputValue('product_value');
-        const stock = interaction.fields.getTextInputValue('product_stock');
-        const emoji = interaction.fields.getTextInputValue('product_emoji');
-
-        if (isNaN(value) || isNaN(stock)) {
-          return interaction.reply({
-            content: '❌ Valor e estoque devem ser números válidos.',
-            ephemeral: true
-          });
-        }
-
-        // Find existing ticket or create new one
-        let ticket = await Ticket.findOne({ channelId: interaction.channelId });
-        if (!ticket) {
-          ticket = new Ticket({
-            guildId: interaction.guildId,
-            channelId: interaction.channelId,
-            userId: interaction.user.id,
-            embedSettings: {
-              title: 'Sistema de Tickets',
-              description: 'Clique no botão abaixo para abrir um ticket.',
-              color: '#5865F2',
-              menuOptions: []
-            }
-          });
-        }
-
-        const description = `${name}\n💸| Valor: R$${value}\n📦 | Estoque: ${stock}`;
-
-        if (!ticket.embedSettings) {
-          ticket.embedSettings = {};
-        }
-        
-        if (!ticket.embedSettings.menuOptions) {
-          ticket.embedSettings.menuOptions = [];
-        }
-
-        ticket.embedSettings.menuOptions.push({
-          label: name,
-          value: `product_${Date.now()}`,
-          description,
-          emoji: emoji || undefined
-        });
-
-        await ticket.save();
-        
-        // Create new message if none exists
-        if (!ticket.messageId) {
-          const message = await createNewMessage(interaction.channel, createEmbed(ticket), createComponents(ticket), ticket);
-          ticket.messageId = message.id;
-          await ticket.save();
-        } else {
-          await updateEmbed(interaction.channel, ticket);
-        }
-
-        await interaction.reply({
-          content: '✅ Produto cadastrado com sucesso!',
-          ephemeral: true
-        });
-
-      } catch (error) {
-        console.error('Erro ao adicionar produto:', error);
-        await interaction.reply({
-          content: '❌ Erro ao adicionar produto ao menu.',
-          ephemeral: true
-        });
-      }
-      return;
-    }
-
-    // In the handler for edit/delete/add/remove stock buttons
-    if (interaction.customId.startsWith('edit_product_') ||
-        interaction.customId.startsWith('delete_product_') ||
-        interaction.customId.startsWith('add_stock_') ||
-        interaction.customId.startsWith('remove_stock_')) {
-      
-      try {
-        const [action, _, index, ticketId] = interaction.customId.split('_');
-        
-        // Find the ticket first
-        const ticket = await Ticket.findOne({ messageId: ticketId });
-        
-        if (!ticket) {
-          return interaction.reply({
-            content: '❌ Configuração não encontrada.',
-            ephemeral: true
-          });
-        }
-    
-        const product = ticket.embedSettings?.menuOptions?.[parseInt(index)];
-        
-        if (!product) {
-          return interaction.reply({
-            content: '❌ Produto não encontrado.',
-            ephemeral: true
-          });
-        }
-    
-        if (action === 'delete') {
-          ticket.embedSettings.menuOptions.splice(parseInt(index), 1);
-          await ticket.save();
-          await updateEmbed(interaction.channel, ticket);
-      
-          await interaction.reply({
-            content: '✅ Produto removido com sucesso!',
-            ephemeral: true
-          });
-          return;
-        }
-      
-        if (action === 'add' || action === 'remove') {
-          const modal = new ModalBuilder()
-            .setCustomId(`${action}_stock_modal_${index}_${ticketId}`) // Added ticketId
-            .setTitle(`${action === 'add' ? 'Adicionar' : 'Remover'} Estoque`);
-      
-          const quantityInput = new TextInputBuilder()
-            .setCustomId('quantity')
-            .setLabel('Quantidade')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true);
-      
-          modal.addComponents(new ActionRowBuilder().addComponents(quantityInput));
-          await interaction.showModal(modal);
-          return;
-        }
-    
-      } catch (error) {
-        console.error('Erro ao gerenciar produto:', error);
-        await interaction.reply({
-          content: '❌ Erro ao gerenciar produto.',
-          ephemeral: true
-        });
-      }
-    }
-
-    // Modify the add_product handler
-    if (interaction.customId === 'add_product') {
-      try {
-        const modal = new ModalBuilder()
-          .setCustomId('add_product_modal')
-          .setTitle('Cadastrar Produto');
-
-        const nameInput = new TextInputBuilder()
-          .setCustomId('product_name')
-          .setLabel('Nome do produto')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true);
-
-        const valueInput = new TextInputBuilder()
-          .setCustomId('product_value')
-          .setLabel('Valor (apenas números)')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true);
-
-        const stockInput = new TextInputBuilder()
-          .setCustomId('product_stock')
-          .setLabel('Quantidade em estoque')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true);
-
-        const emojiInput = new TextInputBuilder()
-          .setCustomId('product_emoji')
-          .setLabel('Emoji (opcional)')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(false);
-
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(nameInput),
-          new ActionRowBuilder().addComponents(valueInput),
-          new ActionRowBuilder().addComponents(stockInput),
-          new ActionRowBuilder().addComponents(emojiInput)
-        );
-
-        await interaction.showModal(modal);
-
-      } catch (error) {
-        console.error('Erro ao abrir modal:', error);
-        if (!interaction.replied) {
-          await interaction.reply({
-            content: '❌ Erro ao abrir formulário de produto.',
-            ephemeral: true
-          });
-        }
-      }
-    }
-
-    // And modify the add_product_modal submit handler
-    if (interaction.isModalSubmit() && interaction.customId === 'add_product_modal') {
-      try {
-        const name = interaction.fields.getTextInputValue('product_name');
-        const value = interaction.fields.getTextInputValue('product_value');
-        const stock = interaction.fields.getTextInputValue('product_stock');
-        const emoji = interaction.fields.getTextInputValue('product_emoji');
-
-        if (isNaN(value) || isNaN(stock)) {
-          return interaction.reply({
-            content: '❌ Valor e estoque devem ser números válidos.',
-            ephemeral: true
-          });
-        }
-
-        // Find existing ticket or create new one
-        let ticket = await Ticket.findOne({ channelId: interaction.channelId });
-        if (!ticket) {
-          ticket = new Ticket({
-            guildId: interaction.guildId,
-            channelId: interaction.channelId,
-            userId: interaction.user.id,
-            embedSettings: {
-              title: 'Sistema de Tickets',
-              description: 'Clique no botão abaixo para abrir um ticket.',
-              color: '#5865F2',
-              menuOptions: []
-            }
-          });
-        }
-
-        const description = `${name}\n💸| Valor: R$${value}\n📦 | Estoque: ${stock}`;
-
-        if (!ticket.embedSettings) {
-          ticket.embedSettings = {};
-        }
-        
-        if (!ticket.embedSettings.menuOptions) {
-          ticket.embedSettings.menuOptions = [];
-        }
-
-        ticket.embedSettings.menuOptions.push({
-          label: name,
-          value: `product_${Date.now()}`,
-          description,
-          emoji: emoji || undefined
-        });
-
-        await ticket.save();
-        
-        // Create new message if none exists
-        if (!ticket.messageId) {
-          const message = await createNewMessage(interaction.channel, createEmbed(ticket), createComponents(ticket), ticket);
-          ticket.messageId = message.id;
-          await ticket.save();
-        } else {
-          await updateEmbed(interaction.channel, ticket);
-        }
-
-        await interaction.reply({
-          content: '✅ Produto cadastrado com sucesso!',
-          ephemeral: true
-        });
-
-      } catch (error) {
-        console.error('Erro ao adicionar produto:', error);
-        await interaction.reply({
-          content: '❌ Erro ao adicionar produto ao menu.',
-          ephemeral: true
-        });
-      }
-      return;
     }
   }
 };

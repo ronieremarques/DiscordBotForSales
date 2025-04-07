@@ -1,6 +1,49 @@
 const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
-const Ticket = require('../models/Ticket'); // Adicionando importação do modelo
-const Config = require('../models/Config'); // Adicionando importação do modelo de configuração
+const Ticket = require('../models/Ticket');
+const Config = require('../models/Config');
+const Product = require('../models/Product');
+
+// Add updateEmbed function
+async function updateEmbed(channel, ticket) {
+  if (!channel || !ticket) return;
+
+  try {
+    const message = await channel.messages.fetch(ticket.messageId);
+
+    const embed = new EmbedBuilder()
+      .setColor(ticket.embedSettings?.color || '#5865F2')
+      .setTitle(ticket.embedSettings?.title || 'Sistema de Tickets')
+      .setDescription(ticket.embedSettings?.description || 'Clique no botão abaixo para abrir um ticket.');
+
+    if (ticket.embedSettings?.image) {
+      embed.setImage(ticket.embedSettings.image);
+    }
+
+    // Create menu if using menu mode
+    const components = [];
+    if (ticket.embedSettings?.useMenu && ticket.embedSettings.menuOptions?.length > 0) {
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId('create_ticket')
+        .setPlaceholder(ticket.embedSettings.menuPlaceholder || 'Selecione uma opção')
+        .addOptions(ticket.embedSettings.menuOptions.map(opt => ({
+          label: opt.label,
+          value: opt.value,
+          description: opt.description,
+          emoji: opt.emoji
+        })));
+
+      components.push(new ActionRowBuilder().addComponents(menu));
+    }
+
+    await message.edit({
+      embeds: [embed],
+      components: components
+    });
+
+  } catch (error) {
+    console.error('Erro ao atualizar embed:', error);
+  }
+}
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -123,6 +166,176 @@ module.exports = {
           console.error('Erro ao processar estoque:', error);
         }
       }
+
+      // Inside the payment validation handler, after confirming payment
+      if (ticket?.embedSettings?.menuOptions) {
+        // Find selected option
+        const selectedOption = ticket.embedSettings.menuOptions.find(opt => 
+          opt.value === ticket.selectedOption // You'll need to store this when user selects an option
+        );
+
+        if (selectedOption && selectedOption.stock > 0) {
+          // Decrease stock
+          selectedOption.stock--;
+          
+          // Update description with new stock
+          selectedOption.description = selectedOption.description.replace(
+            /Estoque: \d+/, 
+            `Estoque: ${selectedOption.stock}`
+          );
+
+          await ticket.save();
+          await updateEmbed(interaction.channel, ticket);
+
+          // If stock reaches 0, you might want to disable/remove the option
+          if (selectedOption.stock === 0) {
+            // Remove option or mark as out of stock
+            ticket.embedSettings.menuOptions = ticket.embedSettings.menuOptions.filter(
+              opt => opt.value !== selectedOption.value
+            );
+            await ticket.save();
+            await updateEmbed(interaction.channel, ticket);
+          }
+        }
+      }
+
+      // Inside the payment validation handler
+      if (interaction.customId === 'validate_payment') {
+        try {
+          const thread = interaction.channel;
+          const ticket = await Ticket.findOne({ threadId: thread.id });
+          
+          if (!ticket) {
+            return interaction.reply({
+              content: '❌ Ticket não encontrado.',
+              ephemeral: true
+            });
+          }
+      
+          // Find selected option and update stock
+          if (ticket.selectedOption && ticket.embedSettings?.menuOptions) {
+            const optionIndex = ticket.embedSettings.menuOptions.findIndex(opt => 
+              opt.value === ticket.selectedOption
+            );
+      
+            if (optionIndex !== -1) {
+              const option = ticket.embedSettings.menuOptions[optionIndex];
+              
+              // Decrease stock
+              if (option.stock > 0) {
+                option.stock--;
+                
+                // Update description with new stock value
+                option.description = option.description.replace(
+                  /Estoque: \d+/,
+                  `Estoque: ${option.stock}`
+                );
+      
+                // Update the ticket with new menu options
+                ticket.embedSettings.menuOptions[optionIndex] = option;
+                await ticket.save();
+      
+                // Update the original embed message
+                const originalChannel = interaction.guild.channels.cache.get(ticket.channelId);
+                const originalMessage = await originalChannel.messages.fetch(ticket.messageId);
+                
+                const embed = new EmbedBuilder()
+                  .setColor(ticket.embedSettings.color || '#5865F2')
+                  .setTitle(ticket.embedSettings.title)
+                  .setDescription(ticket.embedSettings.description);
+      
+                if (ticket.embedSettings.image) {
+                  embed.setImage(ticket.embedSettings.image);
+                }
+      
+                // Create updated menu with new stock values
+                const menu = new StringSelectMenuBuilder()
+                  .setCustomId('create_ticket')
+                  .setPlaceholder(ticket.embedSettings.menuPlaceholder || 'Selecione uma opção')
+                  .addOptions(ticket.embedSettings.menuOptions.map(opt => ({
+                    label: opt.label,
+                    value: opt.value,
+                    description: opt.description,
+                    emoji: opt.emoji
+                  })));
+      
+                const row = new ActionRowBuilder().addComponents(menu);
+      
+                await originalMessage.edit({
+                  embeds: [embed],
+                  components: [row]
+                });
+              }
+            }
+          }
+      
+          // Continue with existing validation code...
+        } catch (error) {
+          console.error('Erro ao validar pagamento:', error);
+          await interaction.reply({
+            content: '❌ Erro ao validar pagamento.',
+            ephemeral: true
+          });
+        }
+      }
+
+      // No trecho de validação de pagamento
+      if (interaction.customId === 'validate_payment') {
+        try {
+          const ticket = await Ticket.findOne({ threadId: interaction.channel.id });
+          if (!ticket || !ticket.selectedOption) return;
+      
+          // Buscar o produto no banco de dados
+          const product = await Product.findOne({ 
+            ticketId: ticket.messageId,
+            optionId: ticket.selectedOption
+          });
+      
+          if (!product) return;
+      
+          // Verificar e atualizar estoque
+          if (product.stock > 0) {
+            // Diminuir estoque
+            product.stock--;
+            
+            // Atualizar descrição
+            product.description = product.originalDescription
+              .replace('[preco]', `R$ ${product.price.toFixed(2)}`)
+              .replace('[estoque]', product.stock.toString());
+      
+            await product.save();
+      
+            // Atualizar opção no menu do ticket
+            const optionIndex = ticket.embedSettings.menuOptions.findIndex(
+              opt => opt.value === ticket.selectedOption
+            );
+      
+            if (optionIndex !== -1) {
+              ticket.embedSettings.menuOptions[optionIndex].description = product.description;
+              await ticket.save();
+      
+              // Atualizar embed original
+              const originalChannel = interaction.guild.channels.cache.get(ticket.channelId);
+              if (originalChannel) {
+                await updateEmbed(originalChannel, ticket);
+              }
+            }
+      
+            // Use followUp instead of reply since we already replied
+            await interaction.followUp({
+              content: '✅ Estoque atualizado com sucesso!',
+              ephemeral: true
+            });
+          }
+      
+        } catch (error) {
+          console.error('Erro ao validar pagamento:', error);
+          await interaction.followUp({
+            content: '❌ Erro ao validar pagamento.',
+            ephemeral: true
+          });
+        }
+      }
     }
 
     if (interaction.customId === 'delivery_channel') {
@@ -148,6 +361,16 @@ module.exports = {
           });
         }
 
+
+        // Get the selected menu option name if it exists
+        const selectedOption = ticket.embedSettings.menuOptions?.find(
+          opt => opt.value === ticket.selectedOption
+        );
+
+        const productName = selectedOption ? selectedOption.label : ticket.embedSettings.title;
+        const buyerId = ticket.deliveryStatus.buyerId;
+
+
         const row = new ActionRowBuilder()
           .addComponents(
             new ButtonBuilder()
@@ -161,7 +384,7 @@ module.exports = {
             embeds: [
               new EmbedBuilder()
                 .setTitle(`${interaction.guild.name} | Nova Venda #${guildConfig.salesCount}`)
-                .setDescription(`- **Comprador:** <@${ticket.deliveryStatus.buyerId}>\n- **Vendedor:** <@${ticket.deliveryStatus.sellerId}>\n- **Produto:** ${ticket.embedSettings.title}\n- **Data:** ${new Date().toLocaleDateString('pt-BR')}\n- **Hora:** ${new Date().toLocaleTimeString('pt-BR')}`)
+                .setDescription(`- **Comprador:** ${interaction.channel.name}\n- **Vendedor:** <@${ticket.deliveryStatus.sellerId}>\n- **Produto:** ${productName}\n- **Data:** ${new Date().toLocaleDateString('pt-BR')}\n- **Hora:** ${new Date().toLocaleTimeString('pt-BR')}`)
                 .setColor('#242429')
                 .setImage(ticket.deliveryStatus.deliveryImage)
             ],
@@ -172,7 +395,7 @@ module.exports = {
             embeds: [
               new EmbedBuilder()
                 .setTitle(`${interaction.guild.name} | Nova Venda #${guildConfig.salesCount}`)
-                .setDescription(`- **Comprador:** <@${ticket.deliveryStatus.buyerId}>\n- **Vendedor:** <@${ticket.deliveryStatus.sellerId}>\n- **Produto:** ${ticket.embedSettings.title}\n- **Data:** ${new Date().toLocaleDateString('pt-BR')}\n- **Hora:** ${new Date().toLocaleTimeString('pt-BR')}`)
+                .setDescription(`- **Comprador:** ${interaction.channel.name}\n- **Vendedor:** <@${ticket.deliveryStatus.sellerId}>\n- **Produto:** ${productName}\n- **Data:** ${new Date().toLocaleDateString('pt-BR')}\n- **Hora:** ${new Date().toLocaleTimeString('pt-BR')}`)
                 .setColor('#242429')
             ],
             components: [row]
