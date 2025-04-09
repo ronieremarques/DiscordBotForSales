@@ -1,0 +1,22 @@
+{
+  "name": "vendas-automaticas",
+  "version": "1.0.2",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon index.js"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.18.0",
+    "canvas": "^3.1.0",
+    "canvas-gif": "^1.0.3",
+    "discord.js": "^14.13.0",
+    "dotenv": "^16.3.1",
+    "gif-encoder-2": "^1.0.5",
+    "mongoose": "^8.0.3",
+    "node-fetch": "^2.7.0",
+    "nodemon": "^3.1.9",
+    "pdf-parse": "^1.1.1",
+    "qrcode": "^1.5.4",
+    "tesseract.js": "^6.0.0"
+  }
+}
