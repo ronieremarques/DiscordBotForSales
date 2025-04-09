@@ -1,8 +1,11 @@
 const { Events, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const Ticket = require('../models/Ticket');
 const Product = require('../models/Product');
+<<<<<<< HEAD
 const Coupon = require('../models/Coupon');
 const CouponComponents = require('../components/CouponComponents');
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -30,66 +33,107 @@ module.exports = {
         .setPlaceholder('Selecione uma opção...')
         .addOptions([
           {
+<<<<<<< HEAD
             label: 'Título da Embed (OPCIONAL)',
+=======
+            label: 'Título da Embed',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "❓",
             description: 'Alterar o título principal',
             value: 'embed_title'
           },
           {
+<<<<<<< HEAD
             label: 'Descrição da Embed (OPCIONAL)',
+=======
+            label: 'Descrição da Embed',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "💬",
             description: 'Alterar a descrição',
             value: 'embed_description'
           },
           {
+<<<<<<< HEAD
             label: 'Cor da Embed (OPCIONAL)',
+=======
+            label: 'Cor da Embed',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "🎨",
             description: 'Alterar a cor (HEX)',
             value: 'embed_color'
           },
           {
+<<<<<<< HEAD
             label: 'Imagem da Embed (OPCIONAL)',
+=======
+            label: 'Imagem da Embed',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "🖼️",
             description: 'Adicionar/alterar imagem',
             value: 'embed_image'
           },
           {
+<<<<<<< HEAD
             label: 'Chave PIX (OBRIGATÓRIO)',
+=======
+            label: 'Chave PIX',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "💠",
             description: 'Configurar chave PIX',
             value: 'pix'
           },
           {
+<<<<<<< HEAD
             label: 'Cor do Botão (OPCIONAL)',
+=======
+            label: 'Cor do Botão',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "🎨",
             description: 'Mudar cor do botão',
             value: 'button_color'
           },
           {
+<<<<<<< HEAD
             label: 'Nome do Botão (OPCIONAL)',
+=======
+            label: 'Nome do Botão',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "❓",
             description: 'Mudar texto do botão',
             value: 'button_label'
           },
           {
+<<<<<<< HEAD
             label: 'Emoji do Botão (OPCIONAL)',
+=======
+            label: 'Emoji do Botão',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "😀",
             description: 'Adicionar emoji ao botão',
             value: 'button_emoji'
           },
           {
+<<<<<<< HEAD
             label: 'Remover Botão de Edição (OPCIONAL)',
+=======
+            label: 'Remover Botão de Edição',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "⚙️",
             description: 'Esta ação é irreversível',
             value: 'remove_config_button'
           },
           {
+<<<<<<< HEAD
             label: 'Tipo de Embed (OBRIGATÓRIO)',
+=======
+            label: 'Tipo de Embed',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             description: 'Normal ou Vendas Manual',
             emoji: "❓",
             value: 'ticket_type'
           },
           {
+<<<<<<< HEAD
             label: 'Canal de Avaliações (OPCIONAL)',
             description: 'Selecionar canal para avaliações',
             emoji: "⭐",
@@ -97,17 +141,25 @@ module.exports = {
           },
           {
             label: 'Setar Estoque (OPCIONAL)',
+=======
+            label: 'Setar Estoque',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "📦",
             description: 'Configurar produtos em estoque',
             value: 'set_stock'
           },
           {
+<<<<<<< HEAD
             label: 'Vendas em Menu (OPCIONAL)',
+=======
+            label: 'Vendas em Menu',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             emoji: "📝",
             description: 'Usar menu dropdown ao invés de botão',
             value: 'menu_mode'
           },
           {
+<<<<<<< HEAD
             label: 'Adicionar Opção ao Menu (DROPDOWN)',
             emoji: "➕",
             description: 'Adicionar opção ao menu dropdown',
@@ -142,6 +194,12 @@ module.exports = {
             emoji: "📥",
             description: 'Importar configurações de JSON',
             value: 'import_config'
+=======
+            label: 'Adicionar Opção ao Menu',
+            emoji: "➕",
+            description: 'Adicionar opção ao menu dropdown',
+            value: 'add_menu_option'
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
           }
         ]);
 
@@ -169,6 +227,7 @@ module.exports = {
 
       const selectedOption = interaction.values[0];
 
+<<<<<<< HEAD
       if (selectedOption === 'export_config') {
         try {
           // Buscar todos os produtos do ticket
@@ -285,6 +344,8 @@ module.exports = {
         return;
       }
 
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
       if (selectedOption === 'embed_image') {
         await interaction.reply({
           content: '🖼️ Envie uma imagem (anexada) ou um link direto da imagem:',
@@ -354,6 +415,7 @@ module.exports = {
         return;
       }
 
+<<<<<<< HEAD
       if (selectedOption === 'review_channel') {
         // Criar menu com os canais do servidor
         const channels = interaction.guild.channels.cache
@@ -384,6 +446,8 @@ module.exports = {
         return;
       }
 
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
       const promptMessages = {
         'embed_title': '📝 Digite o novo título da embed:',
         'embed_description': '📝 Digite a nova descrição da embed:',
@@ -613,6 +677,7 @@ module.exports = {
         return;
       }
 
+<<<<<<< HEAD
       if (selectedOption === 'edit_menu_option') {
         const ticket = await Ticket.findOne({ messageId: interaction.message?.reference?.messageId });
         
@@ -772,6 +837,8 @@ module.exports = {
         return;
       }
 
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
       await interaction.reply({
         content: promptMessages[selectedOption],
         ephemeral: true
@@ -792,6 +859,12 @@ module.exports = {
           case 'embed_title':
             ticket.embedSettings.title = newValue;
             break;
+<<<<<<< HEAD
+=======
+          case 'embed_description':
+            ticket.embedSettings.description = newValue;
+            break;
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
           case 'embed_color':
             if (!/^#([0-9A-Fa-f]{6})$/.test(newValue)) {
               await interaction.followUp({
@@ -1092,6 +1165,7 @@ module.exports = {
         });
       }
     }
+<<<<<<< HEAD
 
     // Tratamento da seleção de produto para edição
     if (interaction.isStringSelectMenu() && interaction.customId === 'edit_product_select') {
@@ -1679,6 +1753,8 @@ module.exports = {
         });
       }
     }
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
   }
 };
 
@@ -1775,8 +1851,13 @@ function createComponents(ticket) {
       .filter(option => option && option.label)
       .map(option => {
         const formattedOption = {
+<<<<<<< HEAD
           label: option.label || 'Opção',
           value: option.value || `option_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+=======
+          label: option.label,
+          value: option.value || `option_${Date.now()}`,
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
           description: option.description || undefined
         };
 

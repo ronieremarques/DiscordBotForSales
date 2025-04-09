@@ -1,10 +1,17 @@
+<<<<<<< HEAD
 const { Events, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+=======
+const { Events, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
 const Ticket = require('../models/Ticket');
 const { createWorker } = require('tesseract.js');
 const pdf = require('pdf-parse');
 const fetch = require('node-fetch');
 const Product = require('../models/Product');
+<<<<<<< HEAD
 const Coupon = require('../models/Coupon');
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
 
 // Função para extrair texto de PDF
 async function extractTextFromPDF(buffer) {
@@ -99,8 +106,11 @@ module.exports = {
           opt => opt.value === selectedValue
         );
 
+<<<<<<< HEAD
         const message = interaction.message
         message.edit();
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
         // Find product in database
         const product = await Product.findOne({
           ticketId: ticket.messageId,
@@ -109,6 +119,7 @@ module.exports = {
 
         // Check if product exists and has stock
         if (!product || product.stock <= 0) {
+<<<<<<< HEAD
           // Criar um botão para notificação de estoque
           const notifyButton = new ButtonBuilder()
             .setCustomId(`notify_stock_${selectedValue}`)
@@ -126,6 +137,10 @@ module.exports = {
                 .setDescription(`Desculpe, este produto está sem estoque no momento. Você pode receber uma notificação quando ele estiver disponível.`)
             ],
             components: [row],
+=======
+          return interaction.editReply({
+            content: '❌ Desculpe, este produto está sem estoque no momento.',
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             ephemeral: true
           });
         }
@@ -175,13 +190,17 @@ module.exports = {
 
       // Get selected option if it's a menu interaction
       let selectedOption = null;
+<<<<<<< HEAD
       let selectedProduct = null;
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
       if (interaction.isStringSelectMenu()) {
         const selectedValue = interaction.values[0];
         selectedOption = ticket.embedSettings.menuOptions.find(
           opt => opt.value === selectedValue
         );
         ticket.selectedOption = selectedValue; // Store selected option value
+<<<<<<< HEAD
         
         // Buscar o produto no banco de dados
         selectedProduct = await Product.findOne({
@@ -198,6 +217,8 @@ module.exports = {
           };
         }
         
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
         await ticket.save();
       }
 
@@ -219,6 +240,7 @@ module.exports = {
             value: selectedOption.description 
           });
         }
+<<<<<<< HEAD
         
         // Adicionar campo com a quantidade e valor total se um produto foi selecionado
         if (selectedProduct) {
@@ -227,6 +249,8 @@ module.exports = {
             value: `Quantidade: **${ticket.cart.quantity}**\nValor unitário: **R$ ${selectedProduct.price.toFixed(2)}**\nValor total: **R$ ${ticket.cart.totalPrice.toFixed(2)}**`
           });
         }
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
       } else {
         threadEmbed
           .setTitle(selectedOption ? `Ticket: ${selectedOption.label}` : 'Ticket Aberto')
@@ -241,6 +265,7 @@ module.exports = {
           .setStyle(ButtonStyle.Danger)
       ];
 
+<<<<<<< HEAD
       // Adicionar botões de controle de quantidade se for vendas e houver produto selecionado
       if (ticket.ticketType === 'vendas' && selectedProduct) {
         buttons.unshift(
@@ -261,12 +286,18 @@ module.exports = {
         );
       }
 
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
       // Only add PIX button if it's a sales ticket and has PIX key configured
       if (ticket.ticketType === 'vendas' && ticket.embedSettings.pixKey) {
         buttons.push(
           new ButtonBuilder()
             .setCustomId('pix_button')
+<<<<<<< HEAD
             .setLabel('Chave Pix')
+=======
+            .setLabel('Pix')
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
             .setStyle(ButtonStyle.Success)
         );
       }
@@ -277,12 +308,15 @@ module.exports = {
         components: [new ActionRowBuilder().addComponents(buttons)]
       });
 
+<<<<<<< HEAD
       // Salvar ID da mensagem do carrinho para atualizações futuras
       if (ticket.ticketType === 'vendas' && selectedProduct) {
         ticket.cart.messageId = welcomeMessage.id;
         await ticket.save();
       }
 
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
       // Fixar a mensagem
       await welcomeMessage.pin('Mensagem inicial do ticket');
 
@@ -394,6 +428,7 @@ module.exports = {
         content: '❌ Erro ao criar ticket.'
       });
     }
+<<<<<<< HEAD
 
     // Adicione este handler para o botão apply_coupon
     if (interaction.customId === 'apply_coupon') {
@@ -692,5 +727,7 @@ module.exports = {
       
       return;
     }
+=======
+>>>>>>> 587a21fa4de200a431d667a698036466d22210be
   }
 };
