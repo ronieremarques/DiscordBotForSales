@@ -1,27 +1,17 @@
 {
   "name": "vendas-automaticas",
-<<<<<<< HEAD
   "version": "1.0.2",
-=======
-  "version": "1.0.0",
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
   "main": "index.js",
   "scripts": {
     "start": "nodemon index.js"
   },
   "dependencies": {
     "@discordjs/voice": "^0.18.0",
-<<<<<<< HEAD
     "canvas": "^3.1.0",
     "canvas-gif": "^1.0.3",
     "discord.js": "^14.13.0",
     "dotenv": "^16.3.1",
     "gif-encoder-2": "^1.0.5",
-=======
-    "discord-rpc": "^4.0.1",
-    "discord.js": "^14.13.0",
-    "dotenv": "^16.3.1",
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
     "mongoose": "^8.0.3",
     "node-fetch": "^2.7.0",
     "nodemon": "^3.1.9",

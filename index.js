@@ -91,7 +91,6 @@ async function registerCommands() {
 
 // index.js (trecho relevante)
 client.on('interactionCreate', async interaction => {
-<<<<<<< HEAD
   try {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
@@ -118,21 +117,6 @@ client.on('interactionCreate', async interaction => {
     } else {
       await interaction.reply(errorMessage);
     }
-=======
-  if (!interaction.isChatInputCommand()) return;
-  
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
-
-  try {
-    await command.execute(interaction);
-  } catch (error) {
-    console.error(error);
-    await interaction.reply({
-      content: '❌ Ocorreu um erro ao executar este comando!',
-      ephemeral: true
-    });
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
   }
 });
 

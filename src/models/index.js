@@ -1,13 +1,10 @@
 const mongoose = require('mongoose');
-<<<<<<< HEAD
 const Product = require('./Product');
 const Sale = require('./Sale');
 const Ticket = require('./Ticket');
 const Config = require('./Config');
 const Coupon = require('./Coupon');
 const Review = require('./Review');
-=======
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
 
 async function connectDB(uri) {
   try {
@@ -19,7 +16,6 @@ async function connectDB(uri) {
   }
 }
 
-<<<<<<< HEAD
 module.exports = { 
   connectDB,
   Product,
@@ -29,6 +25,3 @@ module.exports = {
   Coupon,
   Review
 };
-=======
-module.exports = { connectDB };
->>>>>>> 587a21fa4de200a431d667a698036466d22210be

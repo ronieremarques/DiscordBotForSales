@@ -15,14 +15,11 @@ module.exports = {
     }
 
     try {
-<<<<<<< HEAD
       // Liberar permissões de envio de mensagens em tópicos no canal
       await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
         SendMessagesInThreads: true
       });
 
-=======
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
       // Criar configuração inicial do ticket
       const ticket = await Ticket.create({
         guildId: interaction.guild.id,
@@ -57,24 +54,14 @@ module.exports = {
       await ticket.save();
 
       await interaction.reply({
-<<<<<<< HEAD
         content: '✅ Painel criado e permissões de tópicos liberadas!',
-=======
-        content: 'Configure seu painel!',
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
         ephemeral: true
       });
 
     } catch (error) {
-<<<<<<< HEAD
       console.error('Erro ao criar painel:', error);
       await interaction.reply({
         content: '❌ Ocorreu um erro ao criar o painel.',
-=======
-      console.error('Erro ao criar ticket:', error);
-      await interaction.reply({
-        content: '❌ Ocorreu um erro ao criar o ticket.',
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
         ephemeral: true
       });
     }

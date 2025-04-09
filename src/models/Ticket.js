@@ -31,10 +31,7 @@ const ticketSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   ticketType: { type: String, enum: ['normal', 'vendas'], default: 'normal' },
   deliveryChannel: { type: String }, // Canal para mensagens de entrega
-<<<<<<< HEAD
   reviewChannelId: { type: String }, // Canal para avaliações
-=======
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
   deliveryStatus: {
     delivered: { type: Boolean, default: false },
     proofImage: { type: String },
@@ -42,7 +39,6 @@ const ticketSchema = new mongoose.Schema({
     buyerId: { type: String },
     sellerId: { type: String }
   },
-<<<<<<< HEAD
   selectedOption: { type: String }, // Add this field
   cart: {
     productId: { type: String },
@@ -57,9 +53,6 @@ const ticketSchema = new mongoose.Schema({
       discount: { type: Number }
     }
   }
-=======
-  selectedOption: { type: String } // Add this field
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
 });
 
 module.exports = mongoose.model('Ticket', ticketSchema);

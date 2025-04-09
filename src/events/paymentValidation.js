@@ -2,10 +2,7 @@ const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Stri
 const Ticket = require('../models/Ticket');
 const Config = require('../models/Config');
 const Product = require('../models/Product');
-<<<<<<< HEAD
 const Sale = require('../models/Sale');
-=======
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
 
 // Add updateEmbed function
 async function updateEmbed(channel, ticket) {
@@ -71,11 +68,7 @@ module.exports = {
       const collected = await interaction.channel.awaitMessages({
         filter,
         max: 1,
-<<<<<<< HEAD
         time: 86400000
-=======
-        time: 120000
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
       });
 
       const response = collected.first();
@@ -91,7 +84,6 @@ module.exports = {
       const channels = interaction.guild.channels.cache
         .filter(c => c.type === 0) // Text channels
         .map(c => ({
-<<<<<<< HEAD
           label: c.name.length > 25 ? c.name.substring(0, 22) + '...' : c.name, // Limita o tamanho do nome
           value: c.id
         }))
@@ -103,11 +95,6 @@ module.exports = {
           ephemeral: true
         });
       }
-=======
-          label: c.name,
-          value: c.id
-        }));
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
 
       const menu = new StringSelectMenuBuilder()
         .setCustomId('delivery_channel')
@@ -224,7 +211,6 @@ module.exports = {
       // Inside the payment validation handler
       if (interaction.customId === 'validate_payment') {
         try {
-<<<<<<< HEAD
           const ticket = await Ticket.findOne({ threadId: interaction.channel.id });
           if (!ticket || !ticket.selectedOption) return;
       
@@ -254,90 +240,6 @@ module.exports = {
           ticket.deliveryStatus.buyerId = buyerId;
           ticket.deliveryStatus.sellerId = interaction.user.id;
           await ticket.save();
-=======
-          const thread = interaction.channel;
-          const ticket = await Ticket.findOne({ threadId: thread.id });
-          
-          if (!ticket) {
-            return interaction.reply({
-              content: '❌ Ticket não encontrado.',
-              ephemeral: true
-            });
-          }
-      
-          // Find selected option and update stock
-          if (ticket.selectedOption && ticket.embedSettings?.menuOptions) {
-            const optionIndex = ticket.embedSettings.menuOptions.findIndex(opt => 
-              opt.value === ticket.selectedOption
-            );
-      
-            if (optionIndex !== -1) {
-              const option = ticket.embedSettings.menuOptions[optionIndex];
-              
-              // Decrease stock
-              if (option.stock > 0) {
-                option.stock--;
-                
-                // Update description with new stock value
-                option.description = option.description.replace(
-                  /Estoque: \d+/,
-                  `Estoque: ${option.stock}`
-                );
-      
-                // Update the ticket with new menu options
-                ticket.embedSettings.menuOptions[optionIndex] = option;
-                await ticket.save();
-      
-                // Update the original embed message
-                const originalChannel = interaction.guild.channels.cache.get(ticket.channelId);
-                const originalMessage = await originalChannel.messages.fetch(ticket.messageId);
-                
-                const embed = new EmbedBuilder()
-                  .setColor(ticket.embedSettings.color || '#5865F2')
-                  .setTitle(ticket.embedSettings.title)
-                  .setDescription(ticket.embedSettings.description);
-      
-                if (ticket.embedSettings.image) {
-                  embed.setImage(ticket.embedSettings.image);
-                }
-      
-                // Create updated menu with new stock values
-                const menu = new StringSelectMenuBuilder()
-                  .setCustomId('create_ticket')
-                  .setPlaceholder(ticket.embedSettings.menuPlaceholder || 'Selecione uma opção')
-                  .addOptions(ticket.embedSettings.menuOptions.map(opt => ({
-                    label: opt.label,
-                    value: opt.value,
-                    description: opt.description,
-                    emoji: opt.emoji
-                  })));
-      
-                const row = new ActionRowBuilder().addComponents(menu);
-      
-                await originalMessage.edit({
-                  embeds: [embed],
-                  components: [row]
-                });
-              }
-            }
-          }
-      
-          // Continue with existing validation code...
-        } catch (error) {
-          console.error('Erro ao validar pagamento:', error);
-          await interaction.reply({
-            content: '❌ Erro ao validar pagamento.',
-            ephemeral: true
-          });
-        }
-      }
-
-      // No trecho de validação de pagamento
-      if (interaction.customId === 'validate_payment') {
-        try {
-          const ticket = await Ticket.findOne({ threadId: interaction.channel.id });
-          if (!ticket || !ticket.selectedOption) return;
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
       
           // Buscar o produto no banco de dados
           const product = await Product.findOne({ 
@@ -349,7 +251,6 @@ module.exports = {
       
           // Verificar e atualizar estoque
           if (product.stock > 0) {
-<<<<<<< HEAD
             // Obter a quantidade do carrinho
             const quantity = ticket.cart?.quantity || 1;
             
@@ -384,18 +285,6 @@ module.exports = {
               totalPrice: product.price * quantity
             });
       
-=======
-            // Diminuir estoque
-            product.stock--;
-            
-            // Atualizar descrição
-            product.description = product.originalDescription
-              .replace('[preco]', `R$ ${product.price.toFixed(2)}`)
-              .replace('[estoque]', product.stock.toString());
-      
-            await product.save();
-      
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
             // Atualizar opção no menu do ticket
             const optionIndex = ticket.embedSettings.menuOptions.findIndex(
               opt => opt.value === ticket.selectedOption
@@ -410,7 +299,6 @@ module.exports = {
               if (originalChannel) {
                 await updateEmbed(originalChannel, ticket);
               }
-<<<<<<< HEAD
               
               // Confirmar a venda com a quantidade correta
               await interaction.channel.send({
@@ -418,17 +306,6 @@ module.exports = {
               });
             }
           }
-=======
-            }
-      
-            // Use followUp instead of reply since we already replied
-            await interaction.followUp({
-              content: '✅ Estoque atualizado com sucesso!',
-              ephemeral: true
-            });
-          }
-      
->>>>>>> 587a21fa4de200a431d667a698036466d22210be
         } catch (error) {
           console.error('Erro ao validar pagamento:', error);
           await interaction.followUp({
