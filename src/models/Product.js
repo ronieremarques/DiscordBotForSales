@@ -11,7 +11,11 @@ const productSchema = new mongoose.Schema({
   originalDescription: { type: String }, // Template da descrição
   createdAt: { type: Date, default: Date.now },
   stockNotifications: [{ type: String }], // Array de IDs de usuários para notificar quando repor estoque
-  totalSales: { type: Number, default: 0 } // Total de vendas do produto
+  totalSales: { type: Number, default: 0 }, // Total de vendas do produto
+  rating: {
+    average: { type: Number, default: 0 },
+    count: { type: Number, default: 0 }
+  }
 });
 
 module.exports = mongoose.model('Product', productSchema);

@@ -67,7 +67,10 @@ module.exports = {
             const embedAtualizado = EmbedBuilder.from(message.embeds[0])
                 .setDescription(`**Prêmio:** ${premio}\n**Duração:** ${duracao} minutos\n${apenasClientes ? '**Apenas para clientes!**' : 'Aberto para todos!'}\n\n**Como participar?**\nClique no botão abaixo para entrar no sorteio!\n\n**Participantes (${participantes.size}):**\n${participantesLista}`);
 
-            await message.edit({ embeds: [embedAtualizado] });
+            await message.edit({ 
+                embeds: [embedAtualizado],
+                components: message.components 
+            });
         };
 
         // Coletor de interações dos botões

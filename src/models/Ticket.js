@@ -5,6 +5,7 @@ const ticketSchema = new mongoose.Schema({
   channelId: { type: String, required: true },
   messageId: { type: String },
   threadId: { type: String },
+  categoryId: { type: String }, // Nova categoria para criar canais de carrinho
   userId: { type: String, required: true },
   embedSettings: {
     title: { type: String, default: 'Sistema de Tickets' },
@@ -20,7 +21,9 @@ const ticketSchema = new mongoose.Schema({
       emoji: String, 
       description: String,
       value: String
-    }]
+    }],
+    ratingStyle: { type: String, default: 'default' },
+    mercadoPagoToken: { type: String } // Token de acesso do Mercado Pago
   },
   buttonSettings: {
     style: { type: String, default: 'Primary' }, // Primary, Success, Secondary, Danger
@@ -29,7 +32,7 @@ const ticketSchema = new mongoose.Schema({
   },
   status: { type: String, enum: ['pending', 'open', 'closed'], default: 'pending' },
   createdAt: { type: Date, default: Date.now },
-  ticketType: { type: String, enum: ['normal', 'vendas'], default: 'normal' },
+  ticketType: { type: String, enum: ['normal', 'vendas', 'vendas_auto'], default: 'normal' },
   deliveryChannel: { type: String }, // Canal para mensagens de entrega
   reviewChannelId: { type: String }, // Canal para avaliações
   deliveryStatus: {
@@ -37,9 +40,10 @@ const ticketSchema = new mongoose.Schema({
     proofImage: { type: String },
     deliveryImage: { type: String },
     buyerId: { type: String },
-    sellerId: { type: String }
+    sellerId: { type: String },
+    paidAmount: { type: Number } // Valor identificado no comprovante
   },
-  selectedOption: { type: String }, // Add this field
+  selectedOption: { type: String },
   cart: {
     productId: { type: String },
     quantity: { type: Number, default: 1 },

@@ -1,6 +1,8 @@
 const Coupon = require('../models/Coupon');
 const CouponImageGenerator = require('./couponImageGenerator');
 const Cart = require('../models/Cart');
+const Sale = require('../models/Sale');
+const { CartManager } = require('./cartManager');
 
 class CouponManager {
   static async createCoupon(data) {
@@ -98,6 +100,71 @@ class CouponManager {
         .limit(1);
     } catch (error) {
       throw new Error(`Erro ao buscar cupom: ${error.message}`);
+    }
+  }
+
+  static async getAvailableCoupons(userId) {
+    try {
+      // Importar os módulos localmente para evitar dependência circular
+      const Coupon = require('../models/Coupon');
+      const Sale = require('../models/Sale');
+      const Cart = require('../models/Cart');
+      
+      // Verificar se o usuário é um cliente antigo (já fez uma compra)
+      const previousPurchases = await Sale.countDocuments({ userId });
+      const isFirstPurchase = previousPurchases === 0;
+      
+      // Buscar o carrinho do usuário diretamente
+      const cart = await Cart.findOne({ userId });
+      
+      // Verificar se há itens no carrinho
+      if (!cart || !cart.items || cart.items.length === 0) {
+        return []; // Sem itens no carrinho, nenhum cupom disponível
+      }
+      
+      // Calcular o valor total do carrinho
+      const cartValue = cart.total || 0;
+      
+      // Contar a quantidade total de itens
+      const itemsCount = cart.items.reduce((count, item) => count + parseInt(item.quantity || 0), 0);
+      
+      // Buscar todos os cupons ativos
+      const allCoupons = await Coupon.find({ active: true });
+      
+      // Filtrar apenas os cupons que atendem aos requisitos do usuário
+      const availableCoupons = allCoupons.filter(coupon => {
+        // Verificar se o cupom tem limite de uso
+        if (coupon.maxUses > 0 && coupon.uses >= coupon.maxUses) {
+          return false;
+        }
+        
+        // Verificar se o cupom expirou
+        if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+          return false;
+        }
+        
+        // Verificar valor mínimo de compra
+        if (cartValue < coupon.minOrderValue) {
+          return false;
+        }
+        
+        // Verificar quantidade mínima de produtos
+        if (itemsCount < coupon.minProducts) {
+          return false;
+        }
+        
+        // Verificar se o cupom é apenas para clientes anteriores
+        if (coupon.onlyForPreviousCustomers && isFirstPurchase) {
+          return false;
+        }
+        
+        return true;
+      });
+      
+      return availableCoupons;
+    } catch (error) {
+      console.error('Erro ao obter cupons disponíveis:', error);
+      return [];
     }
   }
 }

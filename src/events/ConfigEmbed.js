@@ -3,6 +3,9 @@ const Ticket = require('../models/Ticket');
 const Product = require('../models/Product');
 const Coupon = require('../models/Coupon');
 const CouponComponents = require('../components/CouponComponents');
+const Config = require('../models/Config');
+const { safeMessageEdit } = require('../utils/embedUtils');
+const MercadoPagoManager = require('../utils/mercadoPago');
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -84,9 +87,9 @@ module.exports = {
             value: 'remove_config_button'
           },
           {
-            label: 'Tipo de Embed (OBRIGATÓRIO)',
-            description: 'Normal ou Vendas Manual',
-            emoji: "❓",
+            label: 'Tipo de Pagamento (OBRIGATÓRIO)',
+            description: 'Vendas Manual ou Vendas Automáticas',
+            emoji: "💰",
             value: 'ticket_type'
           },
           {
@@ -94,6 +97,12 @@ module.exports = {
             description: 'Selecionar canal para avaliações',
             emoji: "⭐",
             value: 'review_channel'
+          },
+          {
+            label: 'Categoria para Vendas (OPCIONAL)',
+            description: 'Selecionar categoria para canais de venda',
+            emoji: "📁",
+            value: 'sales_category'
           },
           {
             label: 'Setar Estoque (OPCIONAL)',
@@ -125,12 +134,6 @@ module.exports = {
             description: 'Remover produto do menu',
             value: 'delete_menu_option'
           },
-          /* {
-            label: 'Gerenciar Cupons',
-            emoji: "🎟️",
-            description: 'Criar e gerenciar cupons de desconto',
-            value: 'manage_coupons'
-          }, */
           {
             label: 'Exportar Configurações (PRODUTO)',
             emoji: "📤",
@@ -142,7 +145,31 @@ module.exports = {
             emoji: "📥",
             description: 'Importar configurações de JSON',
             value: 'import_config'
-          }
+          },
+          {
+            label: 'Gerenciar Cupons',
+            emoji: "🎟️",
+            description: 'Criar e gerenciar cupons de desconto',
+            value: 'manage_coupons'
+          },
+          {
+            label: 'Cargo para Compradores',
+            emoji: "👤",
+            description: 'Definir cargo para compradores após compra',
+            value: 'buyer_role'
+          },/* 
+          {
+            label: 'Estilo de Avaliação',
+            emoji: "⭐",
+            description: 'Selecionar estilo de avaliação',
+            value: 'rating_style'
+          },
+          {
+            label: 'Salvar Configurações',
+            emoji: "💾",
+            description: 'Salvar configurações atuais',
+            value: 'save'
+          } */
         ]);
 
       await interaction.reply({
@@ -190,6 +217,9 @@ module.exports = {
           // Converter para JSON
           const jsonConfig = JSON.stringify(config, null, 2);
           
+          // Criar nome do arquivo personalizado
+          const fileName = `${ticket.embedSettings.title || 'config'}-${ticket.messageId}-${interaction.user.username}-config.json`;
+          
           // Criar arquivo temporário
           const buffer = Buffer.from(jsonConfig);
           
@@ -197,7 +227,7 @@ module.exports = {
             content: '📤 Aqui está sua configuração exportada:',
             files: [{
               attachment: buffer,
-              name: 'config.json'
+              name: fileName
             }],
             ephemeral: true
           });
@@ -237,6 +267,12 @@ module.exports = {
             return;
           }
 
+          // Extrair informações do nome do arquivo
+          const fileNameParts = attachment.name.split('-');
+          const originalTitle = fileNameParts[0];
+          const originalMessageId = fileNameParts[1];
+          const originalUsername = fileNameParts[2];
+          
           // Baixar e ler o arquivo JSON
           const response = await fetch(attachment.url);
           const config = await response.json();
@@ -272,7 +308,7 @@ module.exports = {
           await updateEmbed(interaction.channel, ticket);
           
           await interaction.followUp({
-            content: '✅ Configurações importadas com sucesso!',
+            content: `✅ Configurações importadas com sucesso!\nArquivo original: ${originalTitle} (ID: ${originalMessageId})\nExportado por: ${originalUsername}`,
             ephemeral: true
           });
         } catch (error) {
@@ -371,16 +407,74 @@ module.exports = {
           });
         }
 
-        const menu = new StringSelectMenuBuilder()
-          .setCustomId('select_review_channel')
-          .setPlaceholder('Selecione o canal de avaliações')
-          .addOptions(channels);
+        const menuOptions = createReviewChannelMenu(channels, 0);
+        await interaction.reply(menuOptions);
+        return;
+      }
 
-        await interaction.reply({
-          content: '⭐ Selecione o canal onde as avaliações serão enviadas:',
-          components: [new ActionRowBuilder().addComponents(menu)],
-          ephemeral: true
+      if (selectedOption === 'buyer_role') {
+        // Obter o membro do bot no servidor
+        const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
+        if (!botMember) {
+          return interaction.reply({
+            content: '❌ Não foi possível encontrar o bot no servidor.',
+            ephemeral: true
+          });
+        }
+
+        // Obter a posição do cargo mais alto do bot
+        const botHighestRole = botMember.roles.highest;
+        
+        // Criar menu com os cargos do servidor que estão abaixo do bot na hierarquia
+        const roles = interaction.guild.roles.cache
+          .filter(role => 
+            !role.managed && 
+            role.id !== interaction.guild.id && 
+            role.position < botHighestRole.position) // Apenas cargos abaixo do bot
+          .map(role => ({
+            label: role.name,
+            value: role.id,
+            description: `ID: ${role.id}`
+          }));
+
+        if (roles.length === 0) {
+          return interaction.reply({
+            content: '❌ Não foram encontrados cargos disponíveis abaixo do cargo do bot na hierarquia.\n\n⚠️ **IMPORTANTE:** Para que o bot possa adicionar cargos aos compradores, o cargo desejado deve estar posicionado **ABAIXO** do cargo do bot na hierarquia de cargos do Discord. Por favor, verifique as configurações de cargos do servidor.',
+            ephemeral: true
+          });
+        }
+
+        const menuOptions = createBuyerRoleMenu(roles, 0);
+        await interaction.reply(menuOptions);
+        return;
+      }
+
+      if (selectedOption === 'sales_category') {
+        // Buscar categorias do servidor
+        const categories = interaction.guild.channels.cache
+          .filter(channel => channel.type === 4) // Categoria
+          .map(category => ({
+            label: category.name.length > 25 ? category.name.substring(0, 22) + '...' : category.name,
+            value: category.id,
+            description: `ID: ${category.id}`
+          }));
+
+        // Adicionar opção para usar threads (tópicos)
+        categories.unshift({
+          label: '💬 Usar Tópicos (Threads)',
+          value: 'use_threads',
+          description: 'Voltar a usar tópicos ao invés de canais'
         });
+
+        if (categories.length === 0) {
+          return interaction.reply({
+            content: '❌ Não foram encontradas categorias neste servidor.',
+            ephemeral: true
+          });
+        }
+        
+        const menuOptions = createSalesCategoryMenu(categories, 0);
+        await interaction.reply(menuOptions);
         return;
       }
 
@@ -459,22 +553,22 @@ module.exports = {
       if (selectedOption === 'ticket_type') {
         const typeMenu = new StringSelectMenuBuilder()
           .setCustomId('ticket_type_select')
-          .setPlaceholder('Selecione o tipo de embed')
+          .setPlaceholder('Selecione o tipo de pagamento')
           .addOptions([
-            { 
-              label: 'Ticket Normal',
-              description: 'Atendimento padrão',
-              value: 'normal'
-            },
             {
               label: 'Vendas Manual',
               description: 'Para vendas manuais com PIX',
               value: 'vendas'
+            },
+            {
+              label: 'Vendas Automáticas (Beta)',
+              description: 'Para vendas automáticas com Mercado Pago',
+              value: 'vendas_auto'
             }
           ]);
       
         await interaction.reply({
-          content: '📝 Selecione o tipo de embed:',
+          content: 'Selecione o tipo de pagamento, vendas automáticas é beta:',
           components: [new ActionRowBuilder().addComponents(typeMenu)],
           ephemeral: true
         });
@@ -772,6 +866,51 @@ module.exports = {
         return;
       }
 
+      if (selectedOption === 'rating_style') {
+        // Criar menu com os estilos de avaliação disponíveis
+        const ratingStyles = [
+          {
+            label: 'Padrão',
+            value: 'default',
+            description: '⭐ Avaliação: 5.0/5 (2 avaliações)'
+          },
+          {
+            label: 'Limpo',
+            value: 'clean',
+            description: '5.0/5 (2)'
+          },
+          {
+            label: 'Estrelas',
+            value: 'stars',
+            description: '★★★★★ (2)'
+          },
+          {
+            label: 'Emoji',
+            value: 'emoji',
+            description: '⭐ 5.0/5 (2 avaliações)'
+          },
+          {
+            label: 'Detalhado',
+            value: 'detailed',
+            description: 'Avaliação: 5.0/5 | Total de avaliações: 2'
+          }
+        ];
+
+        const menu = new StringSelectMenuBuilder()
+          .setCustomId('select_rating_style')
+          .setPlaceholder('Selecione o estilo de avaliação')
+          .addOptions(ratingStyles);
+
+        const row = new ActionRowBuilder().addComponents(menu);
+
+        await interaction.reply({
+          content: '**Escolha o estilo de exibição das avaliações:**',
+          components: [row],
+          ephemeral: true
+        });
+        return;
+      }
+
       await interaction.reply({
         content: promptMessages[selectedOption],
         ephemeral: true
@@ -891,10 +1030,31 @@ module.exports = {
         ticket.ticketType = selectedType;
         await ticket.save();
 
+        // Se for vendas automáticas, mostrar modal para token
+        if (selectedType === 'vendas_auto') {
+          const modal = new ModalBuilder()
+            .setCustomId('mp_token_modal')
+            .setTitle('Configurar Mercado Pago');
+
+          const tokenInput = new TextInputBuilder()
+            .setCustomId('mp_token')
+            .setLabel('Token de Acesso do Mercado Pago')
+            .setPlaceholder('Digite seu token de acesso...')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+
+          const firstRow = new ActionRowBuilder().addComponents(tokenInput);
+          modal.addComponents(firstRow);
+
+          await interaction.showModal(modal);
+          return;
+        }
+
         // Mensagem de confirmação baseada no tipo selecionado
         const typeMessages = {
           normal: '✅ Ticket configurado como Normal',
-          vendas: '✅ Ticket configurado como Vendas Manual'
+          vendas: '✅ Ticket configurado como Vendas Manual',
+          vendas_auto: '✅ Ticket configurado como Vendas Automáticas\n\nPor favor, configure o token de acesso do Mercado Pago usando o comando de configuração.'
         };
 
         await interaction.reply({
@@ -906,6 +1066,57 @@ module.exports = {
         console.error('Erro ao atualizar tipo do ticket:', error);
         await interaction.reply({
           content: '❌ Ocorreu um erro ao atualizar o tipo do ticket.',
+          ephemeral: true
+        });
+      }
+    }
+
+    // Adicionar tratamento do modal de token
+    if (interaction.isModalSubmit() && interaction.customId === 'mp_token_modal') {
+      try {
+        const token = interaction.fields.getTextInputValue('mp_token');
+        
+        // Buscar o ticket
+        const originalMessageId = interaction.message.reference?.messageId;
+        const configMessage = await interaction.channel.messages.fetch(originalMessageId);
+        const originalMessageId2 = configMessage.reference?.messageId;
+        const ticket = await Ticket.findOne({ messageId: originalMessageId2 });
+
+        if (!ticket) {
+          return interaction.reply({
+            content: '❌ Configuração não encontrada.',
+            ephemeral: true
+          });
+        }
+
+        // Validar o token
+        const validation = await MercadoPagoManager.validateToken(token);
+
+        if (!validation.valid) {
+          return interaction.reply({
+            content: `❌ Token inválido!`,
+            ephemeral: true
+          });
+        }
+
+        // Salvar o token e informações do usuário
+        ticket.mpToken = token;
+        ticket.mpUserInfo = {
+          accountType: validation.accountType,
+          email: validation.email,
+          nickname: validation.nickname
+        };
+        await ticket.save();
+
+        await interaction.reply({
+          content: `Configurado com sucesso!\n\nNome: ${validation.nickname}\nEmail: ${validation.email}\nDados: ${validation.accountType}`,
+          ephemeral: true
+        });
+
+      } catch (error) {
+        console.error('Erro ao validar token do Mercado Pago:', error);
+        await interaction.reply({
+          content: '❌ Ocorreu um erro ao validar o token do Mercado Pago.',
           ephemeral: true
         });
       }
@@ -1015,10 +1226,10 @@ module.exports = {
           throw new Error('Mensagem não encontrada');
         }
 
-        await messageToUpdate.edit({
-          embeds: [createEmbed(ticket)],
-          components: createComponents(ticket)
-        });
+        const updatedComponents = createComponents(ticket);
+
+        // Atualizar a mensagem mantendo os outros componentes
+        await safeMessageEdit(messageToUpdate, messageToUpdate.embeds, updatedComponents);
 
         await interaction.reply({
           content: `✅ Menu configurado com sucesso!\nModo: ${selectedMode === 'menu' ? 'Menu Dropdown' : 'Botão Normal'}\nTexto do menu: ${placeholder}`,
@@ -1270,9 +1481,7 @@ module.exports = {
                 });
                 
                 // Atualizar a mensagem mantendo os outros componentes
-                await message.edit({
-                  components: updatedComponents
-                });
+                await safeMessageEdit(message, message.embeds, updatedComponents);
               }
             }
             
@@ -1463,12 +1672,13 @@ module.exports = {
       
       switch (selectedAction) {
         case 'create_coupon':
-          const modal = CouponComponents.createCouponModal();
-          await interaction.showModal(modal);
+          // Substituir o modal técnico pelo assistente amigável
+          const couponWizard = require('./couponCreationWizard');
+          await couponWizard.startWizard(interaction);
           break;
           
         case 'list_coupons':
-          const coupons = await Coupon.find({ createdBy: interaction.user.id });
+          const coupons = await Coupon.find({ creatorId: interaction.user.id });
           if (coupons.length === 0) {
             await interaction.reply({
               content: 'Nenhum cupom encontrado.',
@@ -1477,21 +1687,7 @@ module.exports = {
             return;
           }
           
-          const embed = new EmbedBuilder()
-            .setTitle('🎟️ Cupons Disponíveis')
-            .setColor('#4CAF50');
-            
-          let description = '';
-          coupons.forEach(coupon => {
-            description += `**${coupon.name}**\n`;
-            description += `Tipo: ${coupon.discountType === 'fixed' ? 'Valor Fixo' : 'Porcentagem'}\n`;
-            description += `Valor: ${coupon.discountType === 'fixed' ? `R$ ${coupon.discountValue}` : `${coupon.discountValue}%`}\n`;
-            description += `Usos: ${coupon.currentUses}/${coupon.maxUses}\n`;
-            description += `Mínimo: R$ ${coupon.minOrderValue} | ${coupon.minProducts} produtos\n`;
-            description += `Status: ${coupon.isActive ? 'Ativo' : 'Inativo'}\n\n`;
-          });
-          
-          embed.setDescription(description);
+          const embed = CouponComponents.createCouponListEmbed(coupons);
           
           await interaction.reply({
             embeds: [embed],
@@ -1500,7 +1696,7 @@ module.exports = {
           break;
           
         case 'edit_coupon':
-          const editCoupons = await Coupon.find({ createdBy: interaction.user.id });
+          const editCoupons = await Coupon.find({ creatorId: interaction.user.id });
           if (editCoupons.length === 0) {
             await interaction.reply({
               content: 'Nenhum cupom encontrado para editar.',
@@ -1509,26 +1705,26 @@ module.exports = {
             return;
           }
           
-          const editMenu = new StringSelectMenuBuilder()
+          const selectEdit = new StringSelectMenuBuilder()
             .setCustomId('edit_coupon_select')
             .setPlaceholder('Selecione um cupom para editar...')
             .addOptions(
               editCoupons.map(coupon => ({
                 label: coupon.name,
-                description: `${coupon.discountType === 'fixed' ? `R$ ${coupon.discountValue}` : `${coupon.discountValue}%`} | Usos: ${coupon.currentUses}/${coupon.maxUses}`,
+                description: `${coupon.discountType === 'fixed' ? `R$ ${coupon.discountValue}` : `${coupon.discountValue}%`} | Usos: ${coupon.uses}/${coupon.maxUses}`,
                 value: coupon._id.toString()
               }))
             );
           
           await interaction.reply({
             content: 'Selecione o cupom que deseja editar:',
-            components: [new ActionRowBuilder().addComponents(editMenu)],
+            components: [new ActionRowBuilder().addComponents(selectEdit)],
             ephemeral: true
           });
           break;
           
         case 'delete_coupon':
-          const deleteCoupons = await Coupon.find({ createdBy: interaction.user.id });
+          const deleteCoupons = await Coupon.find({ creatorId: interaction.user.id });
           if (deleteCoupons.length === 0) {
             await interaction.reply({
               content: 'Nenhum cupom encontrado para excluir.',
@@ -1537,20 +1733,20 @@ module.exports = {
             return;
           }
           
-          const deleteMenu = new StringSelectMenuBuilder()
+          const selectDelete = new StringSelectMenuBuilder()
             .setCustomId('delete_coupon_select')
             .setPlaceholder('Selecione um cupom para excluir...')
             .addOptions(
               deleteCoupons.map(coupon => ({
                 label: coupon.name,
-                description: `${coupon.discountType === 'fixed' ? `R$ ${coupon.discountValue}` : `${coupon.discountValue}%`} | Usos: ${coupon.currentUses}/${coupon.maxUses}`,
+                description: `${coupon.discountType === 'fixed' ? `R$ ${coupon.discountValue}` : `${coupon.discountValue}%`} | Usos: ${coupon.uses}/${coupon.maxUses}`,
                 value: coupon._id.toString()
               }))
             );
           
           await interaction.reply({
             content: 'Selecione o cupom que deseja excluir:',
-            components: [new ActionRowBuilder().addComponents(deleteMenu)],
+            components: [new ActionRowBuilder().addComponents(selectDelete)],
             ephemeral: true
           });
           break;
@@ -1570,10 +1766,13 @@ module.exports = {
         return;
       }
       
-      const modal = CouponComponents.createEditCouponModal(coupon);
-      await interaction.showModal(modal);
+      // Iniciar assistente de edição de cupom
+      const couponWizard = require('./couponCreationWizard');
+      // Salvar o ID do cupom para edição
+      interaction.client.editingCouponId = couponId;
+      await couponWizard.startWizard(interaction, coupon); // Passa o cupom para o wizard
     }
-
+    
     // Adicionar o tratamento para a seleção de cupom para exclusão
     if (interaction.customId === 'delete_coupon_select') {
       const couponId = interaction.values[0];
@@ -1595,89 +1794,326 @@ module.exports = {
       });
     }
 
-    // Adicionar o tratamento para o modal de criação/edição de cupom
-    if (interaction.isModalSubmit() && (interaction.customId === 'create_coupon_modal' || interaction.customId === 'edit_coupon_modal')) {
+    // Adicionar tratamento para os botões de paginação de canais de avaliação
+    if (interaction.isButton() && 
+        (interaction.customId === 'review_channel_more' || 
+         interaction.customId === 'review_channel_reset')) {
       try {
-        const couponData = {
-          name: interaction.fields.getTextInputValue('coupon_name'),
-          code: interaction.fields.getTextInputValue('coupon_code'),
-          discountType: interaction.fields.getTextInputValue('discount_type').toLowerCase(),
-          discountValue: parseFloat(interaction.fields.getTextInputValue('discount_value')),
-          maxUses: parseInt(interaction.fields.getTextInputValue('max_uses')),
-          minOrderValue: parseFloat(interaction.fields.getTextInputValue('min_order_value')),
-          createdBy: interaction.user.id
-        };
+        const channels = interaction.guild.channels.cache
+          .filter(channel => channel.type === 0)
+          .map(channel => ({
+            label: channel.name,
+            value: channel.id,
+            description: `ID: ${channel.id}`
+          }));
 
-        if (interaction.customId === 'create_coupon_modal') {
-          const coupon = new Coupon(couponData);
-          await coupon.save();
-          
-          await interaction.reply({
-            content: `✅ Cupom "${coupon.name}" criado com sucesso!`,
-            ephemeral: true
-          });
-        } else {
-          const couponId = interaction.message?.reference?.messageId;
-          await Coupon.findByIdAndUpdate(couponId, couponData);
-          
-          await interaction.reply({
-            content: `✅ Cupom "${couponData.name}" atualizado com sucesso!`,
-            ephemeral: true
-          });
-        }
+        const currentPage = interaction.customId === 'review_channel_more' 
+          ? parseInt(interaction.message.components[0].components[0].placeholder.match(/Página (\d+)/)[1])
+          : 0;
+
+        const menuOptions = createReviewChannelMenu(channels, currentPage);
+        await interaction.update(menuOptions);
+        return;
       } catch (error) {
-        console.error('Erro ao salvar cupom:', error);
+        console.error('Erro ao processar paginação de canais de avaliação:', error);
         await interaction.reply({
-          content: `❌ Erro ao salvar cupom: ${error.message}`,
+          content: '❌ Ocorreu um erro ao processar a paginação.',
+          ephemeral: true
+        });
+        return;
+      }
+    }
+
+    if (interaction.customId === 'select_buyer_role') {
+      try {
+        const roleId = interaction.values[0];
+        const role = interaction.guild.roles.cache.get(roleId);
+        
+        // Salvar na configuração do servidor
+        let guildConfig = await Config.findOne({ guildId: interaction.guild.id });
+        if (!guildConfig) {
+          guildConfig = new Config({ guildId: interaction.guild.id });
+        }
+        
+        guildConfig.buyerRoleId = roleId;
+        await guildConfig.save();
+
+        await interaction.reply({
+          content: `✅ Cargo para compradores definido como: **${role.name}**\nEste cargo será dado automaticamente aos usuários após finalizarem uma compra.`,
+          ephemeral: true
+        });
+      } catch (error) {
+        console.error('Erro ao definir cargo para compradores:', error);
+        await interaction.reply({
+          content: '❌ Erro ao definir cargo para compradores.',
           ephemeral: true
         });
       }
     }
 
-    if (interaction.customId === 'select_review_channel') {
+    if (interaction.customId === 'select_sales_category') {
       try {
-        const channelId = interaction.values[0];
-        const channel = interaction.guild.channels.cache.get(channelId);
+        const categoryId = interaction.values[0];
         
-        if (!channel) {
+        // Verificar se o usuário selecionou a opção de usar threads
+        if (categoryId === 'use_threads') {
+          // Buscar o ticket de forma segura
+          let ticket = null;
+          try {
+            const messageReference = interaction.message?.reference;
+            if (messageReference && messageReference.messageId) {
+              const configMessage = await interaction.channel.messages.fetch(messageReference.messageId).catch(() => null);
+              
+              if (configMessage && configMessage.reference && configMessage.reference.messageId) {
+                ticket = await Ticket.findOne({ messageId: configMessage.reference.messageId });
+              }
+            }
+            
+            // Se não conseguir encontrar pela referência, tenta pelo ID do usuário
+            if (!ticket) {
+              ticket = await Ticket.findOne({ userId: interaction.user.id });
+            }
+          } catch (error) {
+            console.error('Erro ao buscar mensagem:', error);
+            // Continua tentando encontrar o ticket pelo ID do usuário
+            ticket = await Ticket.findOne({ userId: interaction.user.id });
+          }
+
+          if (!ticket) {
+            return interaction.reply({
+              content: '❌ Configuração não encontrada. Tente clicar no botão de configuração novamente.',
+              ephemeral: true
+            });
+          }
+
+          // Remover a categoria para voltar a usar threads
+          ticket.categoryId = null;
+          await ticket.save();
+
           return interaction.reply({
-            content: '❌ Canal não encontrado.',
+            content: `✅ Sistema configurado para usar Tópicos (Threads) novamente.`,
+            ephemeral: true
+          });
+        }
+        
+        const category = interaction.guild.channels.cache.get(categoryId);
+        
+        if (!category) {
+          return interaction.reply({
+            content: '❌ Categoria não encontrada.',
             ephemeral: true
           });
         }
 
-        // Buscar o ticket usando a referência da mensagem
-        const messageReference = interaction.message?.reference;
-        const configMessage = messageReference ? 
-          await interaction.channel.messages.fetch(messageReference.messageId) : null;
-        
-        const ticket = await Ticket.findOne({ 
-          messageId: configMessage?.reference?.messageId 
-        });
+        // Buscar o ticket de forma segura
+        let ticket = null;
+        try {
+          const messageReference = interaction.message?.reference;
+          if (messageReference && messageReference.messageId) {
+            const configMessage = await interaction.channel.messages.fetch(messageReference.messageId).catch(() => null);
+            
+            if (configMessage && configMessage.reference && configMessage.reference.messageId) {
+              ticket = await Ticket.findOne({ messageId: configMessage.reference.messageId });
+            }
+          }
+          
+          // Se não conseguir encontrar pela referência, tenta pelo ID do usuário
+          if (!ticket) {
+            ticket = await Ticket.findOne({ userId: interaction.user.id });
+          }
+        } catch (error) {
+          console.error('Erro ao buscar mensagem:', error);
+          // Continua tentando encontrar o ticket pelo ID do usuário
+          ticket = await Ticket.findOne({ userId: interaction.user.id });
+        }
 
         if (!ticket) {
           return interaction.reply({
-            content: '❌ Configuração não encontrada.',
+            content: '❌ Configuração não encontrada. Tente clicar no botão de configuração novamente.',
             ephemeral: true
           });
         }
 
-        // Atualizar o canal de avaliações
-        ticket.reviewChannelId = channelId;
+        // Atualizar a categoria para vendas
+        ticket.categoryId = categoryId;
         await ticket.save();
 
         await interaction.reply({
-          content: `✅ Canal de avaliações definido como: ${channel.name}`,
+          content: `✅ Categoria para vendas definida como: ${category.name}`,
           ephemeral: true
         });
 
       } catch (error) {
-        console.error('Erro ao configurar canal de avaliações:', error);
+        console.error('Erro ao configurar categoria para vendas:', error);
         await interaction.reply({
-          content: '❌ Erro ao configurar canal de avaliações.',
+          content: '❌ Erro ao configurar categoria para vendas.',
           ephemeral: true
         });
       }
+    }
+
+    // Handler para seleção de estilo de avaliação
+    if (interaction.customId === 'select_rating_style') {
+      const selectedStyle = interaction.values[0];
+      
+      // Obter o ID da mensagem a partir dos metadados da interação ou do componente
+      // Verificar se podemos obter a partir da mensagem da interação
+      const messageId = interaction.message?.id;
+      
+      if (!messageId) {
+        return interaction.reply({
+          content: '❌ Não foi possível identificar a configuração. Tente novamente.',
+          ephemeral: true
+        });
+      }
+      
+      const ticket = await Ticket.findOne({ messageId: messageId });
+      
+      if (!ticket) {
+        return interaction.reply({
+          content: '❌ Configuração não encontrada.',
+          ephemeral: true
+        });
+      }
+      
+      // Atualizar o estilo de avaliação nas configurações
+      if (!ticket.embedSettings) {
+        ticket.embedSettings = {};
+      }
+      
+      ticket.embedSettings.ratingStyle = selectedStyle;
+      await ticket.save();
+      
+      // Pré-visualizar o estilo selecionado
+      const { formatRating } = require('../utils/embedUtils');
+      const previewRating = formatRating(5.0, 2, selectedStyle);
+      
+      await interaction.reply({
+        content: `✅ Estilo de avaliação atualizado para: **${selectedStyle}**\n\nPré-visualização: ${previewRating}\n\nAs avaliações de produtos serão exibidas neste formato.`,
+        ephemeral: true
+      });
+      
+      return;
+    }
+
+    // Adicionar tratamento para os botões de paginação de categorias de vendas
+    if (interaction.isButton() && 
+        (interaction.customId === 'sales_category_more' || 
+         interaction.customId === 'sales_category_reset')) {
+      try {
+        const categories = interaction.guild.channels.cache
+          .filter(channel => channel.type === 4)
+          .map(category => ({
+            label: category.name.length > 25 ? category.name.substring(0, 22) + '...' : category.name,
+            value: category.id,
+            description: `ID: ${category.id}`
+          }));
+
+        // Adicionar opção para usar threads (tópicos)
+        categories.unshift({
+          label: '💬 Usar Tópicos (Threads)',
+          value: 'use_threads',
+          description: 'Voltar a usar tópicos ao invés de canais'
+        });
+
+        const currentPage = interaction.customId === 'sales_category_more' 
+          ? parseInt(interaction.message.components[0].components[0].placeholder.match(/Página (\d+)/)[1])
+          : 0;
+
+        const menuOptions = createSalesCategoryMenu(categories, currentPage);
+        await interaction.update(menuOptions);
+        return;
+      } catch (error) {
+        console.error('Erro ao processar paginação de categorias de vendas:', error);
+        await interaction.reply({
+          content: '❌ Ocorreu um erro ao processar a paginação.',
+          ephemeral: true
+        });
+        return;
+      }
+    }
+
+    // Adicionar tratamento para os botões de paginação de cargos
+    if (interaction.isButton() && 
+        (interaction.customId === 'buyer_role_more' || 
+         interaction.customId === 'buyer_role_reset')) {
+      try {
+        const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
+        if (!botMember) {
+          return interaction.reply({
+            content: '❌ Não foi possível encontrar o bot no servidor.',
+            ephemeral: true
+          });
+        }
+
+        const botHighestRole = botMember.roles.highest;
+        
+        const roles = interaction.guild.roles.cache
+          .filter(role => 
+            !role.managed && 
+            role.id !== interaction.guild.id && 
+            role.position < botHighestRole.position)
+          .map(role => ({
+            label: role.name,
+            value: role.id,
+            description: `ID: ${role.id}`
+          }));
+
+        const currentPage = interaction.customId === 'buyer_role_more' 
+          ? parseInt(interaction.message.components[0].components[0].placeholder.match(/Página (\d+)/)[1])
+          : 0;
+
+        const menuOptions = createBuyerRoleMenu(roles, currentPage);
+        await interaction.update(menuOptions);
+        return;
+      } catch (error) {
+        console.error('Erro ao processar paginação de cargos:', error);
+        await interaction.reply({
+          content: '❌ Ocorreu um erro ao processar a paginação.',
+          ephemeral: true
+        });
+        return;
+      }
+    }
+
+    if (interaction.customId === 'select_review_channel') {
+      const channelId = interaction.values[0];
+      const channel = interaction.guild.channels.cache.get(channelId);
+
+      try {
+        // Buscar o ID da mensagem original através da cadeia de referências
+        const messageReference = interaction.message?.reference;
+        const configMessage = messageReference ? 
+          await interaction.channel.messages.fetch(messageReference.messageId) : null;
+        
+        // O ID da mensagem original está na referência da mensagem de configuração
+        const originalMessageId = configMessage?.reference?.messageId;
+        
+        // Buscar o ticket usando o ID da mensagem original
+        const ticket = await Ticket.findOne({ messageId: originalMessageId });
+        
+        if (!ticket) {
+          return interaction.reply({
+            content: '❌ Não foi possível encontrar a configuração do ticket.',
+            ephemeral: true
+          });
+        }
+
+        ticket.reviewChannelId = channelId;
+        await ticket.save();
+
+        await interaction.reply({
+          content: `✅ Canal de avaliações configurado com sucesso: ${channel}`,
+          ephemeral: true
+        });
+      } catch (error) {
+        console.error('Erro ao configurar canal de avaliações:', error);
+        await interaction.reply({
+          content: '❌ Ocorreu um erro ao configurar o canal de avaliações.',
+          ephemeral: true
+        });
+      }
+      return;
     }
   }
 };
@@ -1703,11 +2139,8 @@ async function updateEmbed(channel, ticket) {
     }
 
     if (message) {
-      // Update existing message
-      await message.edit({
-        embeds: [embed],
-        components: components
-      });
+      // Update existing message usando a função segura para preservar componentes
+      await safeMessageEdit(message, embed, components);
     } else {
       // Create new message
       message = await createNewMessage(channel, embed, components, ticket);
@@ -1832,4 +2265,194 @@ function createComponents(ticket) {
   }
 
   return components;
+}
+
+/**
+ * Atualiza componentes de um tipo específico, mantendo os demais intactos
+ * @param {Array} existingComponents - Componentes existentes na mensagem
+ * @param {Array} targetComponents - Novos componentes para o tipo específico
+ * @param {string} customId - ID personalizado do componente a ser atualizado
+ * @returns {Array} - Array de componentes atualizado
+ */
+function updateComponentsSafely(existingComponents, targetComponents, customId) {
+  if (!existingComponents || !Array.isArray(existingComponents) || existingComponents.length === 0) {
+    return targetComponents;
+  }
+  
+  if (!targetComponents || !Array.isArray(targetComponents) || targetComponents.length === 0) {
+    return existingComponents;
+  }
+
+  // Criar um novo array para os componentes atualizados
+  const updatedComponents = [];
+  let targetComponentFound = false;
+  
+  // Para cada ActionRow existente
+  for (const row of existingComponents) {
+    // Verificar se esta linha contém o componente que queremos atualizar
+    const hasTargetComponent = row.components.some(comp => comp.customId === customId);
+    
+    if (hasTargetComponent) {
+      // Adicionar o novo componente no lugar
+      targetComponentFound = true;
+      updatedComponents.push(...targetComponents);
+    } else {
+      // Manter o componente original
+      updatedComponents.push(row);
+    }
+  }
+  
+  // Se não encontramos o componente alvo, adicionar os novos ao final
+  if (!targetComponentFound) {
+    updatedComponents.push(...targetComponents);
+  }
+  
+  return updatedComponents;
+}
+
+// Função auxiliar para criar botões de navegação
+function createNavigationButtons(currentPage, totalPages) {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const row = new ActionRowBuilder();
+
+  // Botão para voltar ao início
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId('review_channel_reset')
+      .setLabel('↩️ Voltar ao Início')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  // Botão para carregar mais canais
+  if (currentPage < totalPages - 1) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId('review_channel_more')
+        .setLabel('⏩ Carregar Mais')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+
+  return row;
+}
+
+// Função para criar o menu de canais com paginação
+function createReviewChannelMenu(channels, page = 0) {
+  const CHANNELS_PER_PAGE = 25;
+  const totalPages = Math.ceil(channels.length / CHANNELS_PER_PAGE);
+  const startIndex = page * CHANNELS_PER_PAGE;
+  const endIndex = startIndex + CHANNELS_PER_PAGE;
+  const currentChannels = channels.slice(startIndex, endIndex);
+
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('select_review_channel')
+    .setPlaceholder(`Selecione o canal de avaliações (Página ${page + 1}/${totalPages})`)
+    .addOptions(currentChannels);
+
+  const menuRow = new ActionRowBuilder().addComponents(menu);
+  const navigationRow = createNavigationButtons(page, totalPages);
+
+  return {
+    content: `⭐ Selecione o canal onde as avaliações serão enviadas${channels.length > 25 ? ' (mostrando primeiros 25 canais)' : ''}:`,
+    components: [menuRow, navigationRow],
+    ephemeral: true
+  };
+}
+
+// Função auxiliar para criar botões de navegação de categorias
+function createCategoryNavigationButtons(currentPage, totalPages) {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const row = new ActionRowBuilder();
+
+  // Botão para voltar ao início
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId('sales_category_reset')
+      .setLabel('↩️ Voltar ao Início')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  // Botão para carregar mais categorias
+  if (currentPage < totalPages - 1) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId('sales_category_more')
+        .setLabel('⏩ Carregar Mais')
+        .setStyle(ButtonStyle.Primary)
+    );
+  }
+
+  return row;
+}
+
+// Função para criar o menu de categorias com paginação
+function createSalesCategoryMenu(categories, page = 0) {
+  const CATEGORIES_PER_PAGE = 25;
+  const totalPages = Math.ceil(categories.length / CATEGORIES_PER_PAGE);
+  const startIndex = page * CATEGORIES_PER_PAGE;
+  const endIndex = startIndex + CATEGORIES_PER_PAGE;
+  const currentCategories = categories.slice(startIndex, endIndex);
+
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('select_sales_category')
+    .setPlaceholder(`Selecione a categoria para vendas (Página ${page + 1}/${totalPages})`)
+    .addOptions(currentCategories);
+
+  const menuRow = new ActionRowBuilder().addComponents(menu);
+  const navigationRow = createCategoryNavigationButtons(page, totalPages);
+
+  return {
+    content: `📁 Selecione a categoria onde os canais de venda serão criados ou escolha "Usar Tópicos" para voltar ao modo padrão${categories.length > 25 ? ' (mostrando primeiras 25 categorias)' : ''}:`,
+    components: [menuRow, navigationRow],
+    ephemeral: true
+  };
+}
+
+// Função auxiliar para criar botões de navegação de cargos
+function createRoleNavigationButtons(currentPage, totalPages) {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const row = new ActionRowBuilder();
+
+  // Botão para voltar ao início
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId('buyer_role_reset')
+      .setLabel('↩️ Voltar ao Início')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  // Botão para carregar mais cargos
+  if (currentPage < totalPages - 1) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId('buyer_role_more')
+        .setLabel('⏩ Carregar Mais')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+
+  return row;
+}
+
+// Função para criar o menu de cargos com paginação
+function createBuyerRoleMenu(roles, page = 0) {
+  const ROLES_PER_PAGE = 25;
+  const totalPages = Math.ceil(roles.length / ROLES_PER_PAGE);
+  const startIndex = page * ROLES_PER_PAGE;
+  const endIndex = startIndex + ROLES_PER_PAGE;
+  const currentRoles = roles.slice(startIndex, endIndex);
+
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('select_buyer_role')
+    .setPlaceholder(`Selecione o cargo para compradores (Página ${page + 1}/${totalPages})`)
+    .addOptions(currentRoles);
+
+  const menuRow = new ActionRowBuilder().addComponents(menu);
+  const navigationRow = createRoleNavigationButtons(page, totalPages);
+
+  return {
+    content: `👤 Selecione o cargo que será dado aos compradores após a compra${roles.length > 25 ? ' (mostrando primeiros 25 cargos)' : ''}:\n\n⚠️ **IMPORTANTE:** Apenas cargos abaixo do bot na hierarquia do Discord são mostrados. Se o cargo desejado não aparecer, você precisará mover o cargo do bot para uma posição mais alta nas configurações do servidor.`,
+    components: [menuRow, navigationRow],
+    ephemeral: true
+  };
 }

@@ -55,6 +55,10 @@ const couponSchema = new mongoose.Schema({
   expiresAt: {
     type: Date
   },
+  onlyForPreviousCustomers: {
+    type: Boolean,
+    default: false
+  },
   products: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }] // Produtos específicos que o cupom pode ser aplicado
 });
 

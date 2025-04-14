@@ -23,6 +23,14 @@ const cartSchema = new mongoose.Schema({
             type: Number,
             required: true,
             min: 1
+        },
+        isMainProduct: {
+            type: Boolean,
+            default: false
+        },
+        relatedToMain: {
+            type: String,
+            default: null  // ID do produto principal ao qual este adicional está relacionado
         }
     }],
     coupon: {

@@ -17,6 +17,14 @@ A powerful Discord bot designed to automate and manage sales through Discord ser
   - Payment proof verification
   - Automated payment validation
 
+- **Shopping Cart System**
+  - Main product selection
+  - Additional/complementary products
+  - Quantity control (+1/-1 buttons)
+  - Remove items functionality
+  - Total amount calculation
+  - Organized interface with separate embeds
+
 - **Voice Channel Management**
   - Automatic voice channel connection
   - Voice status monitoring
