@@ -881,17 +881,46 @@ module.exports = {
                 }
                 
                 // Mensagem amigável com botões simplificados
-                let buyerMessage = `🎉 Sua compra foi entregue com sucesso!\n\n**Produtos:** ${reviewInfo.products.join(', ')}\n**Vendedor:** ${reviewInfo.sellerTag}`;
-                
-                // Adicionar informações de preço, incluindo desconto se houver
-                if (reviewInfo.hasDiscount) {
-                  buyerMessage += `\n**Subtotal:** R$ ${reviewInfo.originalValue.toFixed(2)}`;
-                  buyerMessage += `\n**Desconto:** R$ ${reviewInfo.discountValue.toFixed(2)}`;
-                  buyerMessage += `\n**Total:** R$ ${reviewInfo.totalValue.toFixed(2)}`;
+                let buyerMessage = `🎉 Sua compra foi entregue com sucesso!\n\n`;
+
+                // Se houver carrinho com itens, use as informações do carrinho
+                if (buyerCart && buyerCart.items && buyerCart.items.length > 0) {
+                    const mainItems = buyerCart.items.filter(item => item.isMainProduct || !item.relatedToMain);
+                    const additionalItems = buyerCart.items.filter(item => !item.isMainProduct && item.relatedToMain);
+                    
+                    buyerMessage += "**Produtos:**\n";
+                    
+                    for (const item of mainItems) {
+                        buyerMessage += `- ${item.quantity}x ${item.name} (R$ ${(item.price * item.quantity).toFixed(2)})\n`;
+                    }
+                    
+                    if (additionalItems.length > 0) {
+                        buyerMessage += "\n**Itens adicionais:**\n";
+                        for (const item of additionalItems) {
+                            buyerMessage += `- ${item.quantity}x ${item.name} (R$ ${(item.price * item.quantity).toFixed(2)})\n`;
+                        }
+                    }
                 } else {
-                  buyerMessage += `\n**Total:** R$ ${reviewInfo.totalValue.toFixed(2)}`;
+                    // Fallback para o caso de não ter carrinho
+                    buyerMessage += `**Produtos:** ${reviewInfo.products.join(', ')}\n`;
                 }
+
+                buyerMessage += `**Vendedor:** ${reviewInfo.sellerTag}\n`;
                 
+                // Adicionar informações de preço do carrinho se disponível, senão usar reviewInfo
+                if (buyerCart && buyerCart.finalTotal) {
+                    if (buyerCart.discount && buyerCart.discount > 0) {
+                        buyerMessage += `**Subtotal:** R$ ${(buyerCart.finalTotal + buyerCart.discount).toFixed(2)}\n`;
+                        buyerMessage += `**Desconto:** R$ ${buyerCart.discount.toFixed(2)}\n`;
+                    }
+                    buyerMessage += `**Total:** R$ ${buyerCart.finalTotal.toFixed(2)}`;
+                } else if (reviewInfo.hasDiscount) {
+                    buyerMessage += `**Subtotal:** R$ ${reviewInfo.originalValue.toFixed(2)}\n`;
+                    buyerMessage += `**Desconto:** R$ ${reviewInfo.discountValue.toFixed(2)}\n`;
+                    buyerMessage += `**Total:** R$ ${reviewInfo.totalValue.toFixed(2)}`;
+                } else {
+                    buyerMessage += `**Total:** R$ ${reviewInfo.totalValue.toFixed(2)}`;
+                }
                 
                 await buyerUser.send({
                   content: buyerMessage
