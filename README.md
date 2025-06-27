@@ -6,7 +6,7 @@ Veja o vídeo explicativo sobre o projeto:
 ![Bot Status](https://img.shields.io/badge/status-active-success)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-![ef0716d3-ac42-466d-af41-631e9f796b93](https://www.youtube.com/watch?v=yKMwToz2hoU)
+![ef0716d3-ac42-466d-af41-631e9f796b93](https://private-user-images.githubusercontent.com/178500256/430678987-ae303f02-97bd-4d98-851c-36d2dd423022.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NTA5OTg0ODAsIm5iZiI6MTc1MDk5ODE4MCwicGF0aCI6Ii8xNzg1MDAyNTYvNDMwNjc4OTg3LWFlMzAzZjAyLTk3YmQtNGQ5OC04NTFjLTM2ZDJkZDQyMzAyMi5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwNjI3JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDYyN1QwNDIzMDBaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT03MDk4OTNkYTNhOTY2YTBmYWJlZmRiMWFlNDY2NWE0YzczOGRmOTNhNWQwYzZlZDZkOGZkMzgwYmU1NzZkNzI5JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.EsZsDySwCVHu1dY0xNzAe_tB0Mu4o7UMKPOiclcLL8M)
 ## 🌟 Features
 
 - **Automated Ticket System**
