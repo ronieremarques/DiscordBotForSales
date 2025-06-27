@@ -1,10 +1,12 @@
 # Discord Bot For Sales
 A powerful Discord bot designed to automate and manage sales through Discord servers. Perfect for digital product sellers, service providers, and community managers.
 
+Veja o vídeo explicativo sobre o projeto:
+
 ![Bot Status](https://img.shields.io/badge/status-active-success)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-![ef0716d3-ac42-466d-af41-631e9f796b93](https://github.com/user-attachments/assets/ae303f02-97bd-4d98-851c-36d2dd423022)
+![ef0716d3-ac42-466d-af41-631e9f796b93](https://www.youtube.com/watch?v=yKMwToz2hoU)
 ## 🌟 Features
 
 - **Automated Ticket System**
